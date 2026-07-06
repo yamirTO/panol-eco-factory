@@ -283,3 +283,12 @@ app.get('/api/stats', authenticate, (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
 });
+
+// Servir archivos estáticos (HTML, CSS, JS)
+const path = require('path');
+app.use(express.static(path.join(__dirname)));
+
+// Ruta principal - Sirve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
