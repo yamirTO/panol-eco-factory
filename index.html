@@ -321,9 +321,9 @@
                     3. Restaurá desde la otra PC
                 </div>
                 <div class="backup-section">
-                    <button class="btn btn-primary" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button>
+                    <button class="btn btn-primary admin-only" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button>
                     <div style="text-align:center;color:var(--sub);font-size:13px;margin:8px 0;">— o —</div>
-                    <button class="btn btn-primary" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button>
+                    <button class="btn btn-primary admin-only" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button>
                     <input type="file" id="restoreFileInput" accept=".xlsx" style="display:none;" onchange="restoreBackup(event)">
                 </div>
                 <div id="restoreInfo" style="display:none;margin-top:16px;"></div>
