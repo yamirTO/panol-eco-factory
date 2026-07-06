@@ -2,1077 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Control de Stock · Pañol ECO FACTORY SRL</title>
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js">
     </script>
-    <style>
-        :root {
-            --verde: #1F5C2E;
-            --verdeM: #2E7D32;
-            --verdeC: #E8F5E9;
-            --rojo: #C62828;
-            --rojoC: #FFEBEE;
-            --amarillo: #E65100;
-            --amarC: #FFF8E1;
-            --azul: #1565C0;
-            --azulC: #E3F2FD;
-            --gris: #37474F;
-            --grisC: #ECEFF1;
-            --bg: #F0F4F0;
-            --surface: #FFFFFF;
-            --texto: #1C2B1E;
-            --sub: #607D6B;
-            --borde: #CFD8DC;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--texto);
-            min-height: 100vh;
-        }
-
-        /* === LOGIN === */
-        .login-container {
-            max-width: 400px;
-            margin: 80px auto;
-            background: var(--surface);
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
-        }
-        .login-title {
-            text-align: center;
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--verde);
-            margin-bottom: 8px;
-        }
-        .login-subtitle {
-            text-align: center;
-            color: var(--sub);
-            font-size: 14px;
-            margin-bottom: 24px;
-        }
-        .login-error {
-            background: var(--rojoC);
-            color: var(--rojo);
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 16px;
-            display: none;
-        }
-        .login-btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--verde);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .login-btn:hover {
-            opacity: 0.9;
-        }
-
-        /* === HEADER === */
-        .header {
-            background: var(--verde);
-            padding: 0 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 58px;
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            flex-wrap: wrap;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .header-icon {
-            font-size: 22px;
-        }
-        .header-title {
-            color: #fff;
-            font-weight: 800;
-            font-size: 16px;
-            line-height: 1.1;
-        }
-        .header-subtitle {
-            color: #A5D6A7;
-            font-size: 11px;
-        }
-        .header-nav {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .tab-btn {
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            background: transparent;
-            color: #A5D6A7;
-            transition: all 0.2s;
-        }
-        .tab-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        .tab-btn.active {
-            background: #fff;
-            color: var(--verde);
-        }
-
-        .header-btn {
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1.5px solid #A5D6A7;
-            background: transparent;
-            color: #A5D6A7;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-            margin-left: 4px;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-        .header-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .user-badge {
-            background: rgba(255, 255, 255, 0.15);
-            padding: 4px 16px;
-            border-radius: 20px;
-            color: #A5D6A7;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .user-badge .rol {
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            color: #fff;
-        }
-        .admin-badge {
-            background: #FFD54F;
-            color: #1F5C2E !important;
-        }
-        .empleado-badge {
-            background: #90CAF9;
-            color: #0D47A1 !important;
-        }
-        .logout-btn {
-            background: none;
-            border: 1px solid #A5D6A7;
-            color: #A5D6A7;
-            padding: 4px 12px;
-            border-radius: 12px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.2s;
-        }
-        .logout-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        .sync-status {
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 10px;
-            background: var(--verdeM);
-            color: #fff;
-        }
-        .sync-status.error {
-            background: var(--rojo);
-        }
-        .ping-status {
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            background: #37474F;
-            color: #90CAF9;
-            opacity: 0.7;
-        }
-        .ping-status.active {
-            background: #1B5E20;
-            color: #A5D6A7;
-            opacity: 1;
-        }
-
-        /* === KPIS === */
-        .kpis {
-            display: flex;
-            gap: 12px;
-            padding: 16px 24px 0;
-            flex-wrap: wrap;
-        }
-        .kpi-card {
-            border-radius: 10px;
-            padding: 10px 20px;
-            min-width: 110px;
-            flex: 1;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            user-select: none;
-        }
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        .kpi-card:active {
-            transform: scale(0.98);
-        }
-        .kpi-value {
-            font-size: 22px;
-            font-weight: 800;
-        }
-        .kpi-label {
-            font-size: 11px;
-            font-weight: 600;
-            margin-top: 2px;
-        }
-
-        /* === CONTENT === */
-        .content {
-            padding: 16px 24px 32px;
-        }
-        .section {
-            display: none;
-        }
-        .section.active {
-            display: block;
-        }
-
-        /* === FILTERS === */
-        .filters {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 14px;
-            flex-wrap: wrap;
-        }
-        .search-input,
-        .category-select {
-            border: 1.5px solid var(--borde);
-            border-radius: 8px;
-            padding: 9px 14px;
-            font-size: 13px;
-            background: var(--surface);
-            outline: none;
-            transition: border 0.2s;
-        }
-        .search-input {
-            flex: 1;
-            min-width: 220px;
-        }
-        .search-input:focus {
-            border-color: var(--verde);
-        }
-        .category-select {
-            cursor: pointer;
-        }
-
-        /* === TABLES === */
-        .table-container {
-            background: var(--surface);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-        }
-        .table-header {
-            display: grid;
-            grid-template-columns: 100px 1fr 80px 70px 70px 70px 90px 110px 120px 80px;
-            background: var(--verde);
-            padding: 10px 16px;
-            font-size: 11px;
-            font-weight: 700;
-            color: #A5D6A7;
-            letter-spacing: 0.05em;
-        }
-        .table-row {
-            display: grid;
-            grid-template-columns: 100px 1fr 80px 70px 70px 70px 90px 110px 120px 80px;
-            padding: 10px 16px;
-            align-items: center;
-            border-bottom: 1px solid var(--borde);
-            transition: background 0.2s;
-            cursor: pointer;
-            position: relative;
-        }
-        .table-row:nth-child(even) {
-            background: var(--bg);
-        }
-        .table-row:nth-child(odd) {
-            background: var(--surface);
-        }
-        .table-row:hover {
-            background: #e8f5e9;
-        }
-        .table-row .edit-icon {
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            opacity: 0;
-            transition: opacity 0.2s;
-            font-size: 14px;
-            color: var(--verde);
-        }
-        .table-row:hover .edit-icon {
-            opacity: 1;
-        }
-
-        .code-cell {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--verde);
-        }
-        .desc-cell {
-            font-size: 13px;
-        }
-        .cat-cell {
-            font-size: 11px;
-            color: var(--sub);
-        }
-        .num-cell {
-            text-align: center;
-            font-size: 13px;
-            color: var(--sub);
-        }
-        .stock-cell {
-            text-align: center;
-            font-size: 15px;
-            font-weight: 800;
-        }
-        .badge {
-            display: inline-block;
-            border-radius: 6px;
-            padding: 2px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            white-space: nowrap;
-            text-align: center;
-            margin: 0 auto;
-        }
-        .filter-banner {
-            padding: 8px 16px;
-            background: #FFF8E1;
-            color: #E65100;
-            font-size: 13px;
-            font-weight: 600;
-            border-bottom: 1px solid var(--borde);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .filter-banner button {
-            background: none;
-            border: none;
-            color: var(--verde);
-            cursor: pointer;
-            font-weight: 700;
-            text-decoration: underline;
-            font-size: 12px;
-        }
-        .filter-banner button:hover {
-            color: var(--verdeM);
-        }
-
-        /* === FORMS === */
-        .form-container {
-            max-width: 650px;
-            margin: 0 auto;
-            background: var(--surface);
-            border-radius: 14px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-        .form-title {
-            margin: 0 0 20px;
-            font-size: 18px;
-            font-weight: 800;
-            color: var(--verde);
-        }
-        .type-buttons {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-        .type-btn {
-            flex: 1;
-            padding: 10px 4px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 700;
-            background: var(--grisC);
-            color: var(--sub);
-            transition: all 0.2s;
-        }
-        .type-btn:hover {
-            opacity: 0.8;
-        }
-        .type-btn.active-salida {
-            background: var(--rojo);
-            color: #fff;
-        }
-        .type-btn.active-entrada {
-            background: var(--verdeM);
-            color: #fff;
-        }
-        .type-btn.active-ajuste {
-            background: var(--gris);
-            color: #fff;
-        }
-
-        .form-group {
-            margin-bottom: 14px;
-            position: relative;
-        }
-        .form-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--sub);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            display: block;
-            margin-bottom: 4px;
-        }
-        .form-input {
-            width: 100%;
-            border: 1.5px solid var(--borde);
-            border-radius: 8px;
-            padding: 9px 12px;
-            font-size: 14px;
-            color: var(--texto);
-            background: var(--surface);
-            outline: none;
-            transition: border 0.2s;
-            font-family: inherit;
-        }
-        .form-input:focus {
-            border-color: var(--verde);
-        }
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-        .form-grid-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            background: var(--surface);
-            border: 1.5px solid var(--verde);
-            border-radius: 8px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-            overflow: hidden;
-            display: none;
-            margin-top: 2px;
-        }
-        .suggestions.show {
-            display: block;
-        }
-        .suggestion-item {
-            padding: 12px 14px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--borde);
-            transition: background 0.15s;
-        }
-        .suggestion-item:hover {
-            background: var(--verdeC);
-        }
-        .suggestion-item:last-child {
-            border-bottom: none;
-        }
-        .suggestion-item.new-item {
-            background: #FFF8E1;
-            border: 1px dashed var(--amarillo);
-            font-style: italic;
-        }
-        .suggestion-item.new-item:hover {
-            background: #FFECB3;
-        }
-
-        .item-info {
-            background: var(--verdeC);
-            border: 1.5px solid rgba(46, 125, 50, 0.3);
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-        .item-info.show {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-8px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .item-info-left {
-            flex: 1;
-        }
-        .item-info-name {
-            font-size: 14px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .item-info-details {
-            font-size: 12px;
-            color: var(--sub);
-        }
-        .item-info-right {
-            text-align: right;
-        }
-        .item-info-stock {
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--verdeM);
-            line-height: 1;
-        }
-        .item-info-unit {
-            font-size: 12px;
-            color: var(--sub);
-            margin-top: 2px;
-        }
-        .item-info-remove {
-            background: none;
-            border: none;
-            color: var(--sub);
-            cursor: pointer;
-            font-size: 20px;
-            padding: 0 0 0 12px;
-            line-height: 1;
-            transition: color 0.2s;
-        }
-        .item-info-remove:hover {
-            color: var(--rojo);
-        }
-
-        .new-item-form {
-            background: #FFF8E1;
-            border: 2px dashed var(--amarillo);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 16px;
-            display: none;
-            animation: fadeIn 0.3s ease;
-        }
-        .new-item-form.show {
-            display: block;
-        }
-        .new-item-form-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--amarillo);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .submit-btn {
-            width: 100%;
-            padding: 13px;
-            border-radius: 10px;
-            border: none;
-            color: #fff;
-            font-size: 15px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .submit-btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .toggle-new-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 14px;
-            font-size: 13px;
-            color: var(--amarillo);
-            cursor: pointer;
-            font-weight: 600;
-        }
-        .toggle-new-item:hover {
-            text-decoration: underline;
-        }
-
-        /* === HISTORY === */
-        .history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .history-card {
-            background: var(--surface);
-            border-radius: 10px;
-            padding: 12px 16px;
-            display: grid;
-            grid-template-columns: 90px 90px 1fr 60px 120px 120px;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-            transition: transform 0.2s;
-        }
-        .history-card:hover {
-            transform: translateX(4px);
-        }
-        .history-date {
-            font-size: 12px;
-            color: var(--sub);
-        }
-        .history-type {
-            font-weight: 800;
-            font-size: 12px;
-        }
-        .history-desc {
-            font-size: 13px;
-            font-weight: 600;
-        }
-        .history-code {
-            font-size: 11px;
-            color: var(--sub);
-        }
-        .history-qty {
-            font-size: 18px;
-            font-weight: 800;
-            text-align: center;
-        }
-
-        /* === EMPTY STATE === */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            background: var(--surface);
-            border-radius: 12px;
-        }
-        .empty-icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-        .empty-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-        .empty-text {
-            font-size: 14px;
-            color: var(--sub);
-        }
-
-        /* === TOAST === */
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 200;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-            animation: slideIn 0.3s ease;
-            display: none;
-        }
-        .toast.show {
-            display: block;
-        }
-        .toast-success {
-            background: var(--verdeM);
-            color: #fff;
-        }
-        .toast-error {
-            background: var(--rojo);
-            color: #fff;
-        }
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-
-        /* === MODALS === */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 100;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .modal-overlay.show {
-            display: flex;
-        }
-        .modal {
-            background: var(--surface);
-            border-radius: 16px;
-            width: 100%;
-            max-width: 640px;
-            max-height: 90vh;
-            overflow: auto;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
-            animation: modalIn 0.3s ease;
-        }
-        @keyframes modalIn {
-            from {
-                transform: scale(0.95);
-                opacity: 0;
-            }
-            to {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-        .modal-header {
-            background: var(--verde);
-            padding: 16px 24px;
-            border-radius: 16px 16px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .modal-title {
-            color: #fff;
-            font-weight: 800;
-            font-size: 16px;
-        }
-        .modal-close {
-            background: none;
-            border: none;
-            color: #fff;
-            font-size: 22px;
-            cursor: pointer;
-            padding: 0;
-            line-height: 1;
-        }
-        .modal-body {
-            padding: 24px;
-        }
-
-        .drop-zone {
-            border: 2px dashed var(--borde);
-            border-radius: 12px;
-            padding: 28px 20px;
-            text-align: center;
-            cursor: pointer;
-            margin-bottom: 16px;
-            transition: all 0.2s;
-            background: var(--bg);
-        }
-        .drop-zone.loaded {
-            border-color: var(--verdeM);
-            background: var(--verdeC);
-        }
-
-        .preview-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-            margin-bottom: 16px;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--borde);
-        }
-        .preview-table th {
-            background: var(--verde);
-            padding: 8px 10px;
-            color: #A5D6A7;
-            font-weight: 700;
-            text-align: left;
-            white-space: nowrap;
-        }
-        .preview-table td {
-            padding: 7px 10px;
-            border-bottom: 1px solid var(--borde);
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 10px;
-        }
-        .btn {
-            padding: 11px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s;
-        }
-        .btn:hover {
-            opacity: 0.9;
-        }
-        .btn-cancel {
-            flex: 1;
-            background: var(--surface);
-            color: var(--gris);
-            border: 1.5px solid var(--borde);
-        }
-        .btn-primary {
-            flex: 2;
-            background: var(--verde);
-            color: #fff;
-        }
-
-        .info-box {
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 16px;
-        }
-        .info-box.error {
-            background: var(--rojoC);
-            color: var(--rojo);
-        }
-        .info-box.success {
-            background: var(--azulC);
-            color: var(--azul);
-        }
-
-        .backup-section {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin: 16px 0;
-        }
-        .backup-info {
-            background: #E3F2FD;
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 13px;
-            color: #1565C0;
-            border-left: 4px solid #1565C0;
-            margin-bottom: 12px;
-        }
-
-        /* === CATEGORIAS === */
-        .categoria-item {
-            background: var(--surface);
-            border-radius: 10px;
-            margin-bottom: 8px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-            transition: all 0.2s;
-        }
-        .categoria-item:hover {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        .categoria-header {
-            display: flex;
-            align-items: center;
-            padding: 14px 18px;
-            cursor: pointer;
-            background: var(--surface);
-            border-left: 4px solid var(--verdeM);
-            transition: background 0.2s;
-            gap: 12px;
-        }
-        .categoria-header:hover {
-            background: var(--verdeC);
-        }
-        .categoria-toggle {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--verdeM);
-            min-width: 28px;
-            text-align: center;
-            transition: transform 0.3s;
-        }
-        .categoria-toggle.open {
-            transform: rotate(45deg);
-        }
-        .categoria-nombre {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--texto);
-            flex: 1;
-        }
-        .categoria-cantidad {
-            font-size: 12px;
-            color: var(--sub);
-            background: var(--grisC);
-            padding: 2px 12px;
-            border-radius: 12px;
-            font-weight: 600;
-        }
-        .categoria-items {
-            padding: 0 18px 18px 18px;
-            display: none;
-            background: var(--bg);
-        }
-        .categoria-items.open {
-            display: block;
-        }
-        .categoria-subitem {
-            display: grid;
-            grid-template-columns: 100px 1fr 70px 70px 90px 100px;
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--borde);
-            font-size: 13px;
-            align-items: center;
-            background: var(--surface);
-            border-radius: 6px;
-            margin-top: 6px;
-            transition: background 0.2s;
-        }
-        .categoria-subitem:hover {
-            background: var(--verdeC);
-        }
-        .categoria-subitem .sub-codigo {
-            font-weight: 700;
-            color: var(--verde);
-            font-size: 12px;
-        }
-        .categoria-subitem .sub-desc {
-            font-size: 13px;
-        }
-        .categoria-subitem .sub-stock {
-            text-align: center;
-            font-weight: 800;
-        }
-        .categoria-subitem .sub-min {
-            text-align: center;
-            color: var(--sub);
-            font-size: 12px;
-        }
-        .categoria-subitem .sub-ubic {
-            font-size: 11px;
-            color: var(--sub);
-        }
-        .categoria-subitem .sub-estado {
-            text-align: center;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 999;
-        }
-        .loading-overlay.show {
-            display: flex;
-        }
-        .loading-spinner {
-            background: #fff;
-            padding: 30px 40px;
-            border-radius: 12px;
-            font-weight: 700;
-            font-size: 18px;
-            color: var(--verde);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        }
-        .loading-spinner::after {
-            content: '...';
-            animation: dots 1.5s steps(4) infinite;
-        }
-        @keyframes dots {
-            0% {
-                content: '';
-            }
-            25% {
-                content: '.';
-            }
-            50% {
-                content: '..';
-            }
-            75% {
-                content: '...';
-            }
-        }
-
-        @media (max-width: 768px) {
-            .table-header,
-            .table-row {
-                grid-template-columns: 80px 1fr 60px 60px 60px 60px 80px 80px;
-            }
-            .history-card {
-                grid-template-columns: 1fr;
-                gap: 4px;
-            }
-            .form-grid,
-            .form-grid-3 {
-                grid-template-columns: 1fr;
-            }
-            .header-nav {
-                flex-wrap: wrap;
-            }
-            .categoria-subitem {
-                grid-template-columns: 80px 1fr 50px 50px 70px 70px;
-                font-size: 11px;
-                padding: 6px 8px;
-            }
-            .header {
-                height: auto;
-                padding: 8px 12px;
-                gap: 8px;
-            }
-            .user-badge {
-                font-size: 10px;
-                padding: 2px 8px;
-            }
-        }
-    </style>
 </head>
 <body>
 
@@ -1081,11 +15,16 @@
         <div class="loading-spinner">Cargando datos</div>
     </div>
 
-    <!-- === LOGIN SCREEN === -->
-    <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);">
+    <!-- ========================================= -->
+    <!-- LOGIN SCREEN -->
+    <!-- ========================================= -->
+    <div id="loginScreen" class="login-screen">
         <div class="login-container">
-            <div class="login-title">🏭 Control de Stock</div>
-            <div class="login-subtitle">Pañol · ECO FACTORY SRL</div>
+            <div class="login-header">
+                <div class="login-icon">🏭</div>
+                <h1 class="login-title">Control de Stock</h1>
+                <p class="login-subtitle">Pañol · ECO FACTORY SRL</p>
+            </div>
             <div class="login-error" id="loginError">Usuario o contraseña incorrectos</div>
             <div class="form-group">
                 <label class="form-label">Usuario</label>
@@ -1096,18 +35,19 @@
                 <input type="password" class="form-input" id="loginPass" placeholder="••••••••" value="admin123">
             </div>
             <button class="login-btn" onclick="doLogin()">Ingresar al sistema</button>
-            <div style="margin-top:16px;text-align:center;font-size:12px;color:var(--sub);">
-                <div>Usuarios de prueba:</div>
-                <div>admin / admin123 · empleado1 / empleado123 · empleado2 / empleado123</div>
+            <div class="login-help">
+                <span>admin / admin123 · empleado1 / empleado123</span>
             </div>
         </div>
     </div>
 
-    <!-- === APP SCREEN === -->
-    <div id="appScreen" style="display:none;">
+    <!-- ========================================= -->
+    <!-- APP SCREEN -->
+    <!-- ========================================= -->
+    <div id="appScreen" class="app-screen" style="display:none;">
 
         <!-- HEADER -->
-        <div class="header">
+        <header class="header">
             <div class="header-left">
                 <span class="header-icon">🏭</span>
                 <div>
@@ -1115,80 +55,83 @@
                     <div class="header-subtitle">Pañol · ECO FACTORY SRL</div>
                 </div>
             </div>
-            <div class="header-nav">
+            <div class="header-right">
                 <div class="user-badge">
                     <span id="userNameDisplay">👤 usuario</span>
                     <span class="rol" id="userRolDisplay">admin</span>
-                    <span class="sync-status" id="syncStatus">● Conectado</span>
-                    <span class="ping-status" id="pingStatus">⏱ Ping: --</span>
+                    <span class="sync-status" id="syncStatus">●</span>
+                    <span class="ping-status" id="pingStatus">⏱ --</span>
                     <button class="logout-btn" onclick="doLogout()">Salir</button>
                 </div>
-                <button class="tab-btn active" onclick="switchTab('stock')">Stock</button>
-                <button class="tab-btn" onclick="switchTab('editar')">✏️ Editar</button>
-                <button class="tab-btn" onclick="switchTab('movimiento')">Registrar</button>
-                <button class="tab-btn" onclick="switchTab('historial')">Historial</button>
-                <button class="tab-btn" onclick="switchTab('categorias')">📂 Por categorías</button>
-                <button class="header-btn" onclick="openImportModal()">📂 Importar Excel</button>
-                <button class="header-btn" onclick="openBackupModal()" style="border-color:#FFD54F;color:#FFD54F;">💾 Backup</button>
             </div>
-        </div>
+        </header>
+
+        <!-- NAV TABS -->
+        <nav class="nav-tabs" id="navTabs">
+            <button class="tab-btn active" data-tab="stock">📦 Stock</button>
+            <button class="tab-btn" data-tab="editar">✏️ Editar</button>
+            <button class="tab-btn" data-tab="movimiento">📝 Registrar</button>
+            <button class="tab-btn" data-tab="historial">📋 Historial</button>
+            <button class="tab-btn" data-tab="categorias">📂 Categorías</button>
+            <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none;">⚙️ Admin</button>
+        </nav>
 
         <!-- KPIS -->
-        <div class="kpis" id="kpis">
-            <div class="kpi-card" style="border-left:4px solid var(--verdeM); background:var(--verdeC);" onclick="filterByKPI('todos')" title="Click para ver todos los ítems">
+        <section class="kpis" id="kpis">
+            <div class="kpi-card" data-filter="todos" style="border-left:4px solid var(--verdeM); background:var(--verdeC);">
                 <div class="kpi-value" style="color:var(--verdeM);" id="kpiTotal">0</div>
-                <div class="kpi-label" style="color:var(--sub);">📦 Total ítems</div>
+                <div class="kpi-label">📦 Total</div>
             </div>
-            <div class="kpi-card" style="border-left:4px solid #6A1A1A; background:#FFCDD2;" onclick="filterByKPI('sinstock')" title="Click para ver ítems sin stock">
+            <div class="kpi-card" data-filter="sinstock" style="border-left:4px solid #6A1A1A; background:#FFCDD2;">
                 <div class="kpi-value" style="color:#6A1A1A;" id="kpiSinStock">0</div>
-                <div class="kpi-label" style="color:var(--sub);">⛔ Sin stock</div>
+                <div class="kpi-label">⛔ Sin stock</div>
             </div>
-            <div class="kpi-card" id="kpiCardCriticos" style="border-left:4px solid var(--rojo); background:var(--rojoC); cursor:pointer;" onclick="filterByKPI('criticos')" title="Click para ver ítems críticos (marcados como SI)">
+            <div class="kpi-card" data-filter="criticos" style="border-left:4px solid var(--rojo); background:var(--rojoC);">
                 <div class="kpi-value" style="color:var(--rojo);" id="kpiCriticos">0</div>
-                <div class="kpi-label" style="color:var(--sub);">🔴 Críticos (SI)</div>
+                <div class="kpi-label">🔴 Críticos</div>
             </div>
-            <div class="kpi-card" id="kpiCardCategorias" style="border-left:4px solid var(--azul); background:var(--azulC);" onclick="switchTab('categorias')" title="Click para ver por categorías">
+            <div class="kpi-card" data-tab="categorias" style="border-left:4px solid var(--azul); background:var(--azulC);">
                 <div class="kpi-value" style="color:var(--azul);" id="kpiCategorias">0</div>
-                <div class="kpi-label" style="color:var(--sub);">📂 Categorías</div>
+                <div class="kpi-label">📂 Categorías</div>
             </div>
-            <div class="kpi-card" style="border-left:4px solid var(--azul); background:var(--azulC);" onclick="switchTab('historial')" title="Click para ver el historial">
+            <div class="kpi-card" data-tab="historial" style="border-left:4px solid var(--azul); background:var(--azulC);">
                 <div class="kpi-value" style="color:var(--azul);" id="kpiMovs">0</div>
-                <div class="kpi-label" style="color:var(--sub);">📋 Movimientos</div>
+                <div class="kpi-label">📋 Movimientos</div>
             </div>
-        </div>
+        </section>
 
         <!-- CONTENT -->
-        <div class="content">
+        <main class="content">
 
             <!-- STOCK -->
-            <div class="section active" id="stockSection">
+            <section class="section active" id="stockSection">
                 <div class="filters">
-                    <input type="text" class="search-input" placeholder="🔍 Buscar por código o descripción…" oninput="filterStock()">
+                    <input type="text" class="search-input" placeholder="🔍 Buscar..." oninput="filterStock()">
                     <select class="category-select" onchange="filterStock()">
                         <option>Todas</option>
                     </select>
                 </div>
                 <div class="table-container">
                     <div class="table-header">
-                        <span>CÓDIGO</span><span>DESCRIPCIÓN</span><span>CATEGORÍA</span>
-                        <span style="text-align:center">MÍN</span><span style="text-align:center">ACT</span><span style="text-align:center">MÁX</span>
-                        <span>UBICACIÓN</span><span>PLANTA</span><span style="text-align:center">ESTADO</span><span style="text-align:center">CRÍTICO</span>
+                        <span>CÓDIGO</span><span>DESCRIPCIÓN</span><span>CAT</span>
+                        <span>MÍN</span><span>ACT</span><span>MÁX</span>
+                        <span>UBIC</span><span>ESTADO</span>
                     </div>
                     <div id="stockTable"></div>
                 </div>
-            </div>
+            </section>
 
             <!-- EDITAR -->
-            <div class="section" id="editarSection">
+            <section class="section" id="editarSection">
                 <div class="form-container">
-                    <h2 class="form-title" style="margin:0 0 20px;">✏️ Editar ítem</h2>
+                    <h2 class="form-title">✏️ Editar ítem</h2>
                     <div class="form-group">
-                        <label class="form-label">Buscar ítem a editar</label>
-                        <input type="text" class="form-input" id="editSearchInput" placeholder="Escribí código o nombre del ítem..." oninput="searchItemToEdit()" autocomplete="off">
+                        <label class="form-label">Buscar ítem</label>
+                        <input type="text" class="form-input" id="editSearchInput" placeholder="Código o nombre..." oninput="searchItemToEdit()" autocomplete="off">
                         <div class="suggestions" id="editSuggestions"></div>
                     </div>
                     <div id="editFormContainer" style="display:none;">
-                        <div class="item-info show" style="margin-bottom:20px;background:#E3F2FD;border-color:rgba(21,101,192,0.3);">
+                        <div class="item-info" style="margin-bottom:20px;background:#E3F2FD;border-color:rgba(21,101,192,0.3);">
                             <div class="item-info-left">
                                 <div class="item-info-name" style="color:var(--azul);">Editando: <span id="editItemName"></span></div>
                                 <div class="item-info-details">Stock actual: <span id="editItemStock"></span> <span id="editItemUnit"></span></div>
@@ -1218,16 +161,16 @@
                         <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="editObs"></div>
                         <div class="btn-group">
                             <button class="btn btn-cancel" onclick="cancelEdit()">Cancelar</button>
-                            <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar cambios</button>
+                            <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar</button>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
             <!-- MOVIMIENTO -->
-            <div class="section" id="movimientoSection">
+            <section class="section" id="movimientoSection">
                 <div class="form-container">
-                    <h2 class="form-title">Registrar movimiento</h2>
+                    <h2 class="form-title">📝 Registrar movimiento</h2>
                     <div class="type-buttons">
                         <button class="type-btn active-salida" onclick="setTipo('SALIDA', this)">SALIDA</button>
                         <button class="type-btn" onclick="setTipo('ENTRADA', this)">ENTRADA</button>
@@ -1246,20 +189,20 @@
                         </div>
                         <div class="item-info-right">
                             <div class="item-info-stock" id="itemInfoStock">0</div>
-                            <div class="item-info-unit" id="itemInfoUnit">unidades actuales</div>
+                            <div class="item-info-unit" id="itemInfoUnit">unidades</div>
                         </div>
-                        <button class="item-info-remove" onclick="clearItemSelection()" title="Quitar selección">×</button>
+                        <button class="item-info-remove" onclick="clearItemSelection()">×</button>
                     </div>
                     <div class="toggle-new-item" id="toggleNewItem" style="display:none;" onclick="toggleNewItemForm()">
                         <span id="toggleNewItemIcon">➕</span>
-                        <span id="toggleNewItemText">Crear nuevo ítem en el sistema</span>
+                        <span id="toggleNewItemText">Crear nuevo ítem</span>
                     </div>
                     <div class="new-item-form" id="newItemForm">
-                        <div class="new-item-form-title"><span>🆕</span> Nuevo ítem para ingreso</div>
-                        <div class="form-group"><label class="form-label">Código del nuevo ítem *</label><input type="text" class="form-input" id="newCodigo" placeholder="Ej: PAN-020"></div>
+                        <div class="new-item-form-title">🆕 Nuevo ítem</div>
+                        <div class="form-group"><label class="form-label">Código *</label><input type="text" class="form-input" id="newCodigo" placeholder="PAN-020"></div>
                         <div class="form-group"><label class="form-label">Descripción *</label><input type="text" class="form-input" id="newDescripcion" placeholder="Nombre del producto"></div>
                         <div class="form-grid-3">
-                            <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="newCategoria" placeholder="Ej: EPP"></div>
+                            <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="newCategoria" placeholder="EPP"></div>
                             <div class="form-group"><label class="form-label">Unidad</label><select class="form-input" id="newUnidad"><option>Unidad</option><option>Par</option><option>Kg</option><option>Litro</option><option>Bidón</option><option>Metro</option><option>Caja</option><option>Bolsa</option></select></div>
                             <div class="form-group"><label class="form-label">Stock inicial</label><input type="number" class="form-input" id="newInicial" min="0" value="0"></div>
                         </div>
@@ -1268,8 +211,8 @@
                             <div class="form-group"><label class="form-label">Stock máximo</label><input type="number" class="form-input" id="newMaximo" min="1" value="10"></div>
                         </div>
                         <div class="form-grid">
-                            <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="newUbicacion" placeholder="Ej: E1-A4"></div>
-                            <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="newPlanta" placeholder="Ej: Planta 1"></div>
+                            <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="newUbicacion" placeholder="E1-A4"></div>
+                            <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="newPlanta" placeholder="Planta 1"></div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Crítico (SI/NO)</label>
@@ -1279,35 +222,69 @@
                     <div class="form-grid">
                         <div class="form-group"><label class="form-label">Cantidad *</label><input type="number" class="form-input" id="cantidadInput" min="1" placeholder="0"></div>
                         <div class="form-group"><label class="form-label">Responsable</label><input type="text" class="form-input" id="responsableInput" placeholder="Nombre"></div>
-                        <div class="form-group"><label class="form-label">OT / Referencia</label><input type="text" class="form-input" id="otInput" placeholder="OT-2026-xxx"></div>
-                        <div class="form-group"><label class="form-label">Sector / Destino</label><input type="text" class="form-input" id="sectorInput" placeholder="Hidráulicos…"></div>
+                        <div class="form-group"><label class="form-label">OT / Ref.</label><input type="text" class="form-input" id="otInput" placeholder="OT-2026-xxx"></div>
+                        <div class="form-group"><label class="form-label">Sector</label><input type="text" class="form-input" id="sectorInput" placeholder="Hidráulicos"></div>
                     </div>
                     <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="obsInput" placeholder="Opcional"></div>
                     <button class="submit-btn" id="submitBtn" onclick="registrarMovimiento()">Registrar SALIDA →</button>
                 </div>
-            </div>
+            </section>
 
             <!-- HISTORIAL -->
-            <div class="section" id="historialSection">
+            <section class="section" id="historialSection">
                 <div id="historyList" class="history-list"></div>
-            </div>
+            </section>
 
             <!-- CATEGORÍAS -->
-            <div class="section" id="categoriasSection">
+            <section class="section" id="categoriasSection">
                 <div id="categoriasList"></div>
-            </div>
+            </section>
 
-        </div>
+            <!-- ADMIN -->
+            <section class="section" id="adminSection">
+                <div class="form-container">
+                    <h2 class="form-title">⚙️ Administración</h2>
+                    
+                    <div class="admin-grid">
+                        <div class="admin-card" onclick="openImportModal()">
+                            <div class="admin-card-icon">📂</div>
+                            <div class="admin-card-title">Importar Excel</div>
+                            <div class="admin-card-desc">Cargar stock desde archivo Excel</div>
+                        </div>
+                        <div class="admin-card" onclick="openBackupModal()">
+                            <div class="admin-card-icon">💾</div>
+                            <div class="admin-card-title">Backup</div>
+                            <div class="admin-card-desc">Descargar o restaurar datos</div>
+                        </div>
+                        <div class="admin-card" onclick="descargarPlantilla()">
+                            <div class="admin-card-icon">📊</div>
+                            <div class="admin-card-title">Plantilla Excel</div>
+                            <div class="admin-card-desc">Descargar plantilla para carga</div>
+                        </div>
+                        <div class="admin-card" onclick="exportarDatos()">
+                            <div class="admin-card-icon">📤</div>
+                            <div class="admin-card-title">Exportar todo</div>
+                            <div class="admin-card-desc">Exportar todos los datos a Excel</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
     </div>
 
+    <!-- ========================================= -->
     <!-- TOAST -->
+    <!-- ========================================= -->
     <div class="toast" id="toast"></div>
 
+    <!-- ========================================= -->
     <!-- MODAL IMPORT -->
+    <!-- ========================================= -->
     <div class="modal-overlay" id="importModal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">📂 Importar stock desde Excel</span>
+                <span class="modal-title">📂 Importar desde Excel</span>
                 <button class="modal-close" onclick="closeImportModal()">×</button>
             </div>
             <div class="modal-body">
@@ -1321,30 +298,32 @@
                 <div id="previewContainer" style="display:none;"></div>
                 <div class="btn-group" id="importButtons" style="display:none;">
                     <button class="btn btn-cancel" onclick="closeImportModal()">Cancelar</button>
-                    <button class="btn btn-primary" onclick="confirmImport()">Importar ítems →</button>
+                    <button class="btn btn-primary" onclick="confirmImport()">Importar →</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- ========================================= -->
     <!-- MODAL BACKUP -->
+    <!-- ========================================= -->
     <div class="modal-overlay" id="backupModal">
         <div class="modal">
             <div class="modal-header">
-                <span class="modal-title">💾 Respaldar y restaurar datos</span>
+                <span class="modal-title">💾 Backup</span>
                 <button class="modal-close" onclick="closeBackupModal()">×</button>
             </div>
             <div class="modal-body">
                 <div class="backup-info">
-                    📌 <strong>¿Cómo llevar los datos a otra PC?</strong><br>
-                    1. Hacé clic en <strong>"Descargar backup (Excel)"</strong> en la PC actual<br>
-                    2. Pasá el archivo a la otra PC (pendrive, mail, WhatsApp)<br>
-                    3. En la otra PC, abrí el sistema y hacé clic en <strong>"Restaurar backup (Excel)"</strong>
+                    📌 <strong>Respaldar y restaurar datos</strong><br>
+                    1. Descargá el backup desde esta PC<br>
+                    2. Pasá el archivo a otra PC<br>
+                    3. Restaurá desde la otra PC
                 </div>
                 <div class="backup-section">
-                    <button class="btn btn-primary" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup (Excel)</button>
+                    <button class="btn btn-primary" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button>
                     <div style="text-align:center;color:var(--sub);font-size:13px;margin:8px 0;">— o —</div>
-                    <button class="btn btn-primary" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup (Excel)</button>
+                    <button class="btn btn-primary" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button>
                     <input type="file" id="restoreFileInput" accept=".xlsx" style="display:none;" onchange="restoreBackup(event)">
                 </div>
                 <div id="restoreInfo" style="display:none;margin-top:16px;"></div>
@@ -1352,1114 +331,9 @@
         </div>
     </div>
 
-    <script>
-        // ============================================================
-        //  CONFIGURACIÓN - CONECTADO AL SERVIDOR EN RENDER
-        // ============================================================
-        const API_URL = 'https://panol-eco-factory.onrender.com';
-
-        // ============================================================
-        //  VARIABLES GLOBALES
-        // ============================================================
-        let token = null;
-        let currentUser = null;
-        let items = [];
-        let movs = [];
-        let currentTab = 'stock';
-        let currentTipo = 'SALIDA';
-        let importData = null;
-        let isCreatingNewItem = false;
-        let selectedItemCodigo = null;
-        let editingItemCodigo = null;
-        let activeKpiFilter = 'todos';
-        let pendingRestoreData = null;
-        let categoriasExpandidas = {};
-        let pingContador = 0;
-
-        // ============================================================
-        //  AUTENTICACIÓN
-        // ============================================================
-        function doLogin() {
-            const username = document.getElementById('loginUser').value.trim();
-            const password = document.getElementById('loginPass').value.trim();
-
-            if (!username || !password) {
-                showLoginError('Ingresá usuario y contraseña');
-                return;
-            }
-
-            showLoading(true);
-            fetch(`${API_URL}/api/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    showLoading(false);
-                    if (data.error) {
-                        showLoginError(data.error);
-                        return;
-                    }
-                    token = data.token;
-                    currentUser = data;
-                    localStorage.setItem('panol_token', token);
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('appScreen').style.display = 'block';
-                    document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
-                    const rolSpan = document.getElementById('userRolDisplay');
-                    rolSpan.textContent = data.rol;
-                    rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
-                    loadDataFromServer();
-                    iniciarPing();
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showLoginError('Error al conectar con el servidor');
-                    console.error(err);
-                });
-        }
-
-        function doLogout() {
-            if (token) {
-                fetch(`${API_URL}/api/logout`, { method: 'POST', headers: { 'Authorization': token } }).catch(() => {});
-            }
-            token = null;
-            currentUser = null;
-            localStorage.removeItem('panol_token');
-            document.getElementById('appScreen').style.display = 'none';
-            document.getElementById('loginScreen').style.display = 'flex';
-            document.getElementById('loginPass').value = '';
-            document.getElementById('loginError').style.display = 'none';
-            detenerPing();
-        }
-
-        function showLoginError(msg) {
-            const el = document.getElementById('loginError');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-
-        function showLoading(show) {
-            document.getElementById('loadingOverlay').className = show ? 'loading-overlay show' : 'loading-overlay';
-        }
-
-        // ============================================================
-        //  MANTENER SERVIDOR DESPIERTO (PING CADA 5 MINUTOS)
-        // ============================================================
-        let pingInterval = null;
-
-        function iniciarPing() {
-            // Primera ejecución inmediata
-            setTimeout(hacerPing, 2000);
-            // Luego cada 5 minutos (300000 ms)
-            pingInterval = setInterval(hacerPing, 300000);
-        }
-
-        function detenerPing() {
-            if (pingInterval) {
-                clearInterval(pingInterval);
-                pingInterval = null;
-            }
-            document.getElementById('pingStatus').textContent = '⏱ Ping: Detenido';
-            document.getElementById('pingStatus').className = 'ping-status';
-        }
-
-        function hacerPing() {
-            pingContador++;
-            const url = API_URL + '/api/items';
-            
-            fetch(url, {
-                headers: { 'Authorization': token || '' },
-                signal: AbortSignal.timeout(10000)
-            })
-            .then(res => {
-                const statusEl = document.getElementById('pingStatus');
-                statusEl.textContent = `⏱ Ping ${pingContador}: ✅ ${new Date().toLocaleTimeString()}`;
-                statusEl.className = 'ping-status active';
-                console.log('✅ Ping al servidor #' + pingContador + ' - ' + new Date().toLocaleTimeString());
-            })
-            .catch(err => {
-                const statusEl = document.getElementById('pingStatus');
-                statusEl.textContent = `⏱ Ping ${pingContador}: ⚠️`;
-                statusEl.className = 'ping-status';
-                console.log('⚠️ Error en ping:', err.message);
-            });
-        }
-
-        // ============================================================
-        //  API HELPER
-        // ============================================================
-        function apiCall(endpoint, options = {}) {
-            return fetch(`${API_URL}${endpoint}`, {
-                    ...options,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token,
-                        ...(options.headers || {})
-                    }
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.error) {
-                        if (data.error === 'Token inválido' || data.error === 'Token no proporcionado') {
-                            doLogout();
-                            showToast('Sesión expirada, iniciá sesión nuevamente', false);
-                        }
-                        throw new Error(data.error);
-                    }
-                    return data;
-                });
-        }
-
-        // ============================================================
-        //  CARGAR DATOS DEL SERVIDOR
-        // ============================================================
-        function loadDataFromServer() {
-            showLoading(true);
-            Promise.all([
-                apiCall('/api/items'),
-                apiCall('/api/movimientos'),
-                apiCall('/api/stats')
-            ])
-            .then(([itemsData, movsData, statsData]) => {
-                items = itemsData;
-                movs = movsData;
-                showLoading(false);
-                updateKPIsFromStats(statsData);
-                renderStock();
-                renderHistory();
-                renderCategorias();
-                document.getElementById('syncStatus').textContent = '● Conectado';
-                document.getElementById('syncStatus').className = 'sync-status';
-                showToast('✅ Datos cargados desde el servidor');
-            })
-            .catch(err => {
-                showLoading(false);
-                document.getElementById('syncStatus').textContent = '⚠️ Desconectado';
-                document.getElementById('syncStatus').className = 'sync-status error';
-                showToast('❌ Error al cargar datos: ' + err.message, false);
-            });
-        }
-
-        function updateKPIsFromStats(stats) {
-            document.getElementById('kpiTotal').textContent = stats.totalItems || 0;
-            document.getElementById('kpiSinStock').textContent = stats.sinStock || 0;
-            document.getElementById('kpiCriticos').textContent = stats.criticos || 0;
-            document.getElementById('kpiCategorias').textContent = stats.categorias || 0;
-            document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
-        }
-
-        // ============================================================
-        //  FUNCIONES DE STOCK
-        // ============================================================
-        function stockActual(item) {
-            return movs.reduce((acc, m) => {
-                if (m.codigo !== item.codigo) return acc;
-                if (m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN') return acc + Number(m.cantidad);
-                if (m.tipo === 'SALIDA') return acc - Number(m.cantidad);
-                return acc;
-            }, item.inicial || 0);
-        }
-
-        function esCritico(item) {
-            return item.critico && item.critico.toUpperCase() === 'SI';
-        }
-
-        function estadoItem(actual, minimo, item) {
-            if (actual <= 0) return { label: '⛔ Sin stock', color: '#C62828', bg: '#FFCDD2' };
-            if (esCritico(item)) return { label: '🔴 Crítico (SI)', color: '#C62828', bg: '#FFEBEE' };
-            if (actual < minimo) return { label: '🟡 Reponer', color: '#E65100', bg: '#FFF8E1' };
-            return { label: '🟢 OK', color: '#2E7D32', bg: '#E8F5E9' };
-        }
-
-        // ============================================================
-        //  TABS
-        // ============================================================
-        function switchTab(tab) {
-            currentTab = tab;
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(tab + 'Section').classList.add('active');
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            tabBtns.forEach(b => b.classList.remove('active'));
-            const map = { stock: 0, editar: 1, movimiento: 2, historial: 3, categorias: 4 };
-            if (map[tab] !== undefined) tabBtns[map[tab]].classList.add('active');
-            if (tab === 'stock') renderStock();
-            if (tab === 'historial') renderHistory();
-            if (tab === 'movimiento') updateNewItemVisibility();
-            if (tab === 'editar') resetEditForm();
-            if (tab === 'categorias') renderCategorias();
-        }
-
-        function showToast(msg, success = true) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.className = 'toast show ' + (success ? 'toast-success' : 'toast-error');
-            clearTimeout(toast._timeout);
-            toast._timeout = setTimeout(() => toast.classList.remove('show'), 3500);
-        }
-
-        function filterByKPI(filter) {
-            activeKpiFilter = filter;
-            currentTab = 'stock';
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById('stockSection').classList.add('active');
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabBtns[0].classList.add('active');
-            document.querySelector('.search-input').value = '';
-            document.querySelector('.category-select').value = 'Todas';
-            renderStock();
-        }
-
-        // ============================================================
-        //  RENDER STOCK
-        // ============================================================
-        function renderStock() {
-            const searchInput = document.querySelector('.search-input');
-            const catSelect = document.querySelector('.category-select');
-            const q = searchInput.value.toLowerCase();
-            const cat = catSelect.value;
-            const categorias = ['Todas', ...new Set(items.map(i => i.categoria || 'Sin categoría'))];
-            catSelect.innerHTML = categorias.map(c => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('');
-            let filtrados = items.filter(i => {
-                const matchQ = !q || i.codigo.toLowerCase().includes(q) || i.descripcion.toLowerCase().includes(q);
-                const matchC = cat === 'Todas' || (i.categoria || 'Sin categoría') === cat;
-                return matchQ && matchC;
-            });
-            if (activeKpiFilter === 'sinstock') { filtrados = filtrados.filter(i => stockActual(i) <= 0); } else if (activeKpiFilter ===
-                'criticos') { filtrados = filtrados.filter(i => esCritico(i)); }
-
-            const tableBody = document.getElementById('stockTable');
-            tableBody.innerHTML = '';
-            let filterMessage = '';
-            if (activeKpiFilter === 'sinstock') filterMessage = '⛔ Ítems sin stock';
-            else if (activeKpiFilter === 'criticos') filterMessage = '🔴 Ítems marcados como críticos (SI)';
-
-            if (filterMessage && filtrados.length > 0) {
-                tableBody.innerHTML +=
-                    `<div class="filter-banner"><span>Mostrando: ${filterMessage} (${filtrados.length} ítems)</span><button onclick="filterByKPI('todos')">Ver todos los ítems →</button></div>`;
-            }
-
-            tableBody.innerHTML += filtrados.map((item, idx) => {
-                const actual = stockActual(item);
-                const e = estadoItem(actual, item.minimo, item);
-                const criticoLabel = esCritico(item) ? 'SI' : 'NO';
-                return `<div class="table-row" style="${idx % 2 === 0 ? '' : 'background:var(--bg)'}" onclick="editItemFromTable('${item.codigo}')" title="Click para editar">
-                <span class="code-cell">${item.codigo}</span><span class="desc-cell">${item.descripcion}</span><span class="cat-cell">${item.categoria || '—'}</span>
-                <span class="num-cell">${item.minimo}</span><span class="stock-cell" style="color:${actual <= item.minimo ? e.color : 'var(--texto)'}">${actual}</span>
-                <span class="num-cell">${item.maximo}</span><span style="font-size:11px;color:var(--sub);">${item.ubicacion || '—'}</span>
-                <span style="font-size:11px;color:var(--sub);">${item.planta || '—'}</span>
-                <span style="text-align:center;"><span class="badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;">${e.label}</span></span>
-                <span style="text-align:center;font-weight:700;color:${esCritico(item)?'var(--rojo)':'var(--sub)'};">${criticoLabel}</span>
-                <span class="edit-icon">✏️</span></div>`;
-            }).join('');
-
-            if (filtrados.length === 0) { tableBody.innerHTML +=
-                    '<div style="padding:32px;text-align:center;color:var(--sub);font-size:14px;">No hay ítems que coincidan con el filtro</div>'; }
-        }
-
-        function filterStock() { activeKpiFilter = 'todos';
-            renderStock(); }
-
-        function editItemFromTable(codigo) { switchTab('editar');
-            loadItemForEdit(codigo); }
-
-        // ============================================================
-        //  EDITAR (solo admin)
-        // ============================================================
-        function searchItemToEdit() {
-            const val = document.getElementById('editSearchInput').value.trim().toUpperCase();
-            const suggestions = document.getElementById('editSuggestions');
-            if (!val) { suggestions.classList.remove('show'); return; }
-            if (val.length >= 2) {
-                const results = items.filter(i => i.codigo.toLowerCase().includes(val.toLowerCase()) || i.descripcion.toLowerCase()
-                    .includes(val.toLowerCase())).slice(0, 8);
-                if (results.length > 0) {
-                    suggestions.innerHTML = results.map(s =>
-                            `<div class="suggestion-item" onclick="loadItemForEdit('${s.codigo}')" onmousedown="event.preventDefault()"><span><strong style="color:var(--verde);">${s.codigo}</strong> <span style="margin-left:8px;font-size:13px;">${s.descripcion}</span></span><span style="font-size:12px;color:var(--sub);">Stock: ${stockActual(s)}</span></div>`
-                        )
-                        .join('');
-                    suggestions.classList.add('show');
-                } else { suggestions.classList.remove('show'); }
-            } else { suggestions.classList.remove('show'); }
-        }
-
-        function loadItemForEdit(codigo) {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden editar ítems', false);
-                return;
-            }
-            const item = items.find(i => i.codigo === codigo);
-            if (!item) return;
-            editingItemCodigo = codigo;
-            document.getElementById('editSearchInput').value = item.codigo + ' - ' + item.descripcion;
-            document.getElementById('editSuggestions').classList.remove('show');
-            document.getElementById('editItemName').textContent = item.descripcion;
-            document.getElementById('editItemStock').textContent = stockActual(item);
-            document.getElementById('editItemUnit').textContent = item.unidad || 'unidades';
-            document.getElementById('editCodigo').value = item.codigo;
-            document.getElementById('editDescripcion').value = item.descripcion;
-            document.getElementById('editCategoria').value = item.categoria || '';
-            document.getElementById('editUnidad').value = item.unidad || 'Unidad';
-            document.getElementById('editInicial').value = item.inicial;
-            document.getElementById('editMinimo').value = item.minimo;
-            document.getElementById('editMaximo').value = item.maximo;
-            document.getElementById('editUbicacion').value = item.ubicacion || '';
-            document.getElementById('editPlanta').value = item.planta || '';
-            document.getElementById('editCritico').value = item.critico || 'NO';
-            document.getElementById('editObs').value = item.obs || '';
-            document.getElementById('editFormContainer').style.display = 'block';
-        }
-
-        function saveEdit() {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden editar ítems', false);
-                return;
-            }
-            if (!editingItemCodigo) { showToast('Seleccioná un ítem para editar', false); return; }
-            const newCodigo = document.getElementById('editCodigo').value.trim();
-            const newDescripcion = document.getElementById('editDescripcion').value.trim();
-            if (!newCodigo || !newDescripcion) { showToast('Código y descripción son obligatorios', false); return; }
-            if (newCodigo !== editingItemCodigo && items.find(i => i.codigo === newCodigo)) { showToast('El código ' + newCodigo +
-                    ' ya existe', false); return; }
-
-            let criticoVal = document.getElementById('editCritico').value.trim().toUpperCase();
-            if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
-
-            const updatedItem = {
-                codigo: newCodigo,
-                descripcion: newDescripcion,
-                categoria: document.getElementById('editCategoria').value.trim() || 'Sin categoría',
-                unidad: document.getElementById('editUnidad').value,
-                inicial: Number(document.getElementById('editInicial').value) || 0,
-                minimo: Number(document.getElementById('editMinimo').value) || 1,
-                maximo: Number(document.getElementById('editMaximo').value) || 10,
-                ubicacion: document.getElementById('editUbicacion').value.trim(),
-                planta: document.getElementById('editPlanta').value.trim(),
-                critico: criticoVal,
-                obs: document.getElementById('editObs').value.trim()
-            };
-
-            showLoading(true);
-            apiCall(`/api/items/${editingItemCodigo}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(updatedItem)
-                })
-                .then(() => {
-                    const idx = items.findIndex(i => i.codigo === editingItemCodigo);
-                    if (idx !== -1) items[idx] = updatedItem;
-                    editingItemCodigo = newCodigo;
-                    showLoading(false);
-                    showToast('✅ Ítem actualizado correctamente');
-                    loadItemForEdit(newCodigo);
-                    renderStock();
-                    renderCategorias();
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showToast('❌ Error: ' + err.message, false);
-                });
-        }
-
-        function cancelEdit() { resetEditForm(); }
-
-        function resetEditForm() {
-            editingItemCodigo = null;
-            document.getElementById('editSearchInput').value = '';
-            document.getElementById('editSuggestions').classList.remove('show');
-            document.getElementById('editFormContainer').style.display = 'none';
-            ['editCodigo', 'editDescripcion', 'editCategoria', 'editUbicacion', 'editPlanta', 'editCritico', 'editObs'].forEach(id =>
-                document.getElementById(id).value = '');
-            document.getElementById('editUnidad').value = 'Unidad';
-            document.getElementById('editInicial').value = '0';
-            document.getElementById('editMinimo').value = '1';
-            document.getElementById('editMaximo').value = '10';
-        }
-
-        // ============================================================
-        //  MOVIMIENTOS
-        // ============================================================
-        document.addEventListener('click', function(e) {
-            const editInput = document.getElementById('editSearchInput');
-            const editSuggestions = document.getElementById('editSuggestions');
-            if (e.target !== editInput && !editSuggestions.contains(e.target)) { editSuggestions.classList.remove('show'); }
-            const codigoInput = document.getElementById('codigoInput');
-            const suggestions = document.getElementById('suggestions');
-            if (e.target !== codigoInput && !suggestions.contains(e.target)) { suggestions.classList.remove('show'); }
-        });
-
-        function setTipo(tipo, btn) {
-            currentTipo = tipo;
-            document.querySelectorAll('#movimientoSection .type-btn').forEach(b => b.className = 'type-btn');
-            let activeClass = '';
-            if (tipo === 'SALIDA') activeClass = 'active-salida';
-            else if (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') activeClass = 'active-entrada';
-            else activeClass = 'active-ajuste';
-            btn.classList.add(activeClass);
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = 'Registrar ' + tipo + ' →';
-            submitBtn.style.background = tipo === 'SALIDA' ? 'var(--rojo)' : (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') ?
-                'var(--verdeM)' : 'var(--gris)';
-            updateNewItemVisibility();
-            if (tipo !== 'ENTRADA') hideNewItemForm();
-        }
-
-        function updateNewItemVisibility() { document.getElementById('toggleNewItem').style.display = (currentTipo === 'ENTRADA' &&
-                currentTab === 'movimiento') ? 'flex' : 'none'; }
-
-        function toggleNewItemForm() {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden crear nuevos ítems', false);
-                return;
-            }
-            isCreatingNewItem = !isCreatingNewItem;
-            const form = document.getElementById('newItemForm');
-            const codigoGroup = document.getElementById('codigoExistenteGroup');
-            const itemInfo = document.getElementById('itemInfo');
-            const toggleIcon = document.getElementById('toggleNewItemIcon');
-            const toggleText = document.getElementById('toggleNewItemText');
-            if (isCreatingNewItem) {
-                form.classList.add('show');
-                codigoGroup.style.opacity = '0.5';
-                codigoGroup.style.pointerEvents = 'none';
-                itemInfo.classList.remove('show');
-                document.getElementById('suggestions').classList.remove('show');
-                toggleIcon.textContent = '➖';
-                toggleText.textContent = 'Seleccionar ítem existente';
-                selectedItemCodigo = null;
-                document.getElementById('codigoInput').value = '';
-            } else { hideNewItemForm(); }
-        }
-
-        function hideNewItemForm() {
-            isCreatingNewItem = false;
-            document.getElementById('newItemForm').classList.remove('show');
-            document.getElementById('codigoExistenteGroup').style.opacity = '1';
-            document.getElementById('codigoExistenteGroup').style.pointerEvents = 'auto';
-            document.getElementById('toggleNewItemIcon').textContent = '➕';
-            document.getElementById('toggleNewItemText').textContent = 'Crear nuevo ítem en el sistema';
-            ['newCodigo', 'newDescripcion', 'newCategoria', 'newUbicacion', 'newPlanta', 'newCritico'].forEach(id => document
-                .getElementById(id).value = '');
-            document.getElementById('newInicial').value = '0';
-            document.getElementById('newMinimo').value = '1';
-            document.getElementById('newMaximo').value = '10';
-            document.getElementById('newCritico').value = 'NO';
-        }
-
-        function searchItem() {
-            if (isCreatingNewItem) return;
-            const val = document.getElementById('codigoInput').value.trim().toUpperCase();
-            const suggestions = document.getElementById('suggestions');
-            const itemInfo = document.getElementById('itemInfo');
-            if (!val) { suggestions.classList.remove('show');
-                itemInfo.classList.remove('show');
-                selectedItemCodigo = null; return; }
-            const itemExacto = items.find(i => i.codigo === val);
-            if (itemExacto) { suggestions.classList.remove('show');
-                mostrarInfoItem(itemExacto);
-                selectedItemCodigo = itemExacto.codigo; } else if (val.length >= 2) {
-                const results = items.filter(i => i.codigo.toLowerCase().includes(val.toLowerCase()) || i.descripcion.toLowerCase()
-                    .includes(val.toLowerCase())).slice(0, 6);
-                if (results.length > 0) {
-                    suggestions.innerHTML = results.map(s =>
-                            `<div class="suggestion-item" onclick="selectItem('${s.codigo}')" onmousedown="event.preventDefault()"><span><strong style="color:var(--verde);">${s.codigo}</strong> <span style="margin-left:8px;font-size:13px;">${s.descripcion}</span></span><span>Stock: ${stockActual(s)} ${s.unidad||''}</span></div>`
-                        )
-                        .join('');
-                    if (currentTipo === 'ENTRADA' && currentUser.rol === 'admin') { suggestions.innerHTML +=
-                            `<div class="suggestion-item new-item" onclick="toggleNewItemForm();document.getElementById('newCodigo').value='${val}';document.getElementById('suggestions').classList.remove('show');" onmousedown="event.preventDefault()"><span>🆕 <strong>Crear nuevo:</strong> <span style="color:var(--amarillo);">${val}</span></span></div>`; }
-                    suggestions.classList.add('show');
-                    itemInfo.classList.remove('show');
-                    selectedItemCodigo = null;
-                } else {
-                    suggestions.classList.remove('show');
-                    itemInfo.classList.remove('show');
-                    if (currentTipo === 'ENTRADA' && val.length >= 2 && currentUser.rol === 'admin') { suggestions.innerHTML =
-                            `<div class="suggestion-item new-item" onclick="toggleNewItemForm();document.getElementById('newCodigo').value='${val}';document.getElementById('suggestions').classList.remove('show');" onmousedown="event.preventDefault()"><span>🆕 <strong>Crear nuevo:</strong> <span style="color:var(--amarillo);">${val}</span></span></div>`;
-                        suggestions.classList.add('show'); }
-                }
-            }
-        }
-
-        function mostrarInfoItem(item) {
-            document.getElementById('itemInfoDesc').textContent = item.descripcion;
-            document.getElementById('itemInfoDetails').textContent = (item.categoria || '') + (item.ubicacion ? ' · ' + item
-                .ubicacion : '') + (item.planta ? ' · ' + item.planta : '') + ' · Crítico: ' + (item.critico || 'NO');
-            document.getElementById('itemInfoStock').textContent = stockActual(item);
-            document.getElementById('itemInfoUnit').textContent = (item.unidad || 'unidades') + ' actuales';
-            document.getElementById('itemInfo').classList.add('show');
-        }
-
-        function selectItem(codigo) {
-            document.getElementById('codigoInput').value = codigo;
-            document.getElementById('suggestions').classList.remove('show');
-            const item = items.find(i => i.codigo === codigo);
-            if (item) { mostrarInfoItem(item);
-                selectedItemCodigo = codigo;
-                hideNewItemForm(); }
-            document.getElementById('cantidadInput').focus();
-        }
-
-        function clearItemSelection() {
-            document.getElementById('codigoInput').value = '';
-            document.getElementById('itemInfo').classList.remove('show');
-            document.getElementById('suggestions').classList.remove('show');
-            selectedItemCodigo = null;
-            hideNewItemForm();
-            document.getElementById('codigoInput').focus();
-        }
-
-        function registrarMovimiento() {
-            const cantidad = Number(document.getElementById('cantidadInput').value);
-            const responsable = document.getElementById('responsableInput').value.trim() || currentUser.username;
-            const ot = document.getElementById('otInput').value.trim();
-            const sector = document.getElementById('sectorInput').value.trim();
-            const obs = document.getElementById('obsInput').value.trim();
-            if (!cantidad || cantidad <= 0) { showToast('Ingresá una cantidad válida', false); return; }
-
-            let codigo, descripcion, categoria, unidad, minimo, maximo, ubicacion, planta, critico;
-
-            if (isCreatingNewItem) {
-                if (currentUser.rol !== 'admin') {
-                    showToast('Solo administradores pueden crear nuevos ítems', false);
-                    return;
-                }
-                const newCodigo = document.getElementById('newCodigo').value.trim();
-                const newDescripcion = document.getElementById('newDescripcion').value.trim();
-                if (!newCodigo) { showToast('Ingresá el código', false); return; }
-                if (!newDescripcion) { showToast('Ingresá la descripción', false); return; }
-                if (items.find(i => i.codigo === newCodigo)) { showToast('El código ya existe', false); return; }
-
-                codigo = newCodigo;
-                descripcion = newDescripcion;
-                categoria = document.getElementById('newCategoria').value.trim() || 'Sin categoría';
-                unidad = document.getElementById('newUnidad').value;
-                minimo = Number(document.getElementById('newMinimo').value) || 1;
-                maximo = Number(document.getElementById('newMaximo').value) || 10;
-                ubicacion = document.getElementById('newUbicacion').value.trim();
-                planta = document.getElementById('newPlanta').value.trim() || 'Planta 1';
-                critico = document.getElementById('newCritico').value.trim().toUpperCase() || 'NO';
-                if (!['SI', 'NO'].includes(critico)) critico = 'NO';
-
-                showLoading(true);
-                apiCall('/api/items', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            codigo,
-                            descripcion,
-                            categoria,
-                            unidad,
-                            inicial: Number(document.getElementById('newInicial').value) || 0,
-                            minimo,
-                            maximo,
-                            ubicacion,
-                            planta,
-                            critico,
-                            obs: ''
-                        })
-                    })
-                    .then(() => {
-                        return registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs,
-                            categoria, unidad, minimo, maximo, ubicacion, planta, critico);
-                    })
-                    .then(() => {
-                        showLoading(false);
-                        limpiarFormularioMovimiento();
-                        showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
-                        loadDataFromServer();
-                    })
-                    .catch(err => {
-                        showLoading(false);
-                        showToast('❌ Error: ' + err.message, false);
-                    });
-                return;
-            }
-
-            if (!selectedItemCodigo) {
-                const val = document.getElementById('codigoInput').value.trim();
-                const item = items.find(i => i.codigo === val);
-                if (!item) { showToast('Seleccioná un ítem', false); return; }
-                selectedItemCodigo = item.codigo;
-            }
-
-            const item = items.find(i => i.codigo === selectedItemCodigo);
-            if (!item) { showToast('Ítem no encontrado', false); return; }
-            codigo = item.codigo;
-            descripcion = item.descripcion;
-
-            if (currentTipo === 'SALIDA' && cantidad > stockActual(item)) {
-                showToast('Stock insuficiente. Actual: ' + stockActual(item), false);
-                return;
-            }
-
-            showLoading(true);
-            registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs)
-                .then(() => {
-                    showLoading(false);
-                    limpiarFormularioMovimiento();
-                    showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
-                    loadDataFromServer();
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showToast('❌ Error: ' + err.message, false);
-                });
-        }
-
-        function registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs, categoria, unidad,
-            minimo, maximo, ubicacion, planta, critico) {
-            const body = {
-                codigo,
-                descripcion,
-                tipo: currentTipo,
-                cantidad,
-                responsable,
-                ot,
-                sector,
-                obs
-            };
-            if (categoria) body.categoria = categoria;
-            if (unidad) body.unidad = unidad;
-            if (minimo) body.minimo = minimo;
-            if (maximo) body.maximo = maximo;
-            if (ubicacion) body.ubicacion = ubicacion;
-            if (planta) body.planta = planta;
-            if (critico) body.critico = critico;
-
-            return apiCall('/api/movimiento', {
-                method: 'POST',
-                body: JSON.stringify(body)
-            });
-        }
-
-        function limpiarFormularioMovimiento() {
-            ['codigoInput', 'cantidadInput', 'otInput', 'obsInput'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('itemInfo').classList.remove('show');
-            selectedItemCodigo = null;
-            hideNewItemForm();
-        }
-
-        // ============================================================
-        //  RENDER HISTORY
-        // ============================================================
-        function renderHistory() {
-            const container = document.getElementById('historyList');
-            if (movs.length === 0) { container.innerHTML =
-                    `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Sin movimientos</div></div>`; return; }
-            container.innerHTML = movs.slice(0, 100).map(m => {
-                const isEntrada = m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN';
-                return `<div class="history-card" style="border-left:4px solid ${isEntrada?'var(--verdeM)':m.tipo==='SALIDA'?'var(--rojo)':'var(--gris)'};"><span class="history-date">${m.fecha}<br><span style="font-size:11px;">${m.hora}</span></span><span class="history-type" style="color:${isEntrada?'var(--verdeM)':'var(--rojo)'};">${m.tipo}</span><div><div class="history-desc">${m.descripcion}</div><div class="history-code">${m.codigo}</div></div><span class="history-qty" style="color:${m.tipo==='SALIDA'?'var(--rojo)':'var(--verdeM)'};">${m.tipo==='SALIDA'?'-':'+'}${m.cantidad}</span><span style="font-size:12px;color:var(--sub);">${m.responsable||'—'}</span><span style="font-size:11px;color:var(--sub);">${m.obs||''}</span></div>`;
-            }).join('');
-        }
-
-        // ============================================================
-        //  RENDER CATEGORÍAS
-        // ============================================================
-        function renderCategorias() {
-            const container = document.getElementById('categoriasList');
-            const categorias = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].sort();
-
-            if (categorias.length === 0) {
-                container.innerHTML =
-                    `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">Sin categorías</div><div class="empty-text">No hay categorías definidas en el sistema</div></div>`;
-                return;
-            }
-
-            let html = '';
-            categorias.forEach(cat => {
-                const itemsCat = items.filter(i => (i.categoria || 'Sin categoría') === cat);
-                const isOpen = categoriasExpandidas[cat] || false;
-
-                html += `<div class="categoria-item">
-                    <div class="categoria-header" onclick="toggleCategoria('${cat}')">
-                        <span class="categoria-toggle ${isOpen ? 'open' : ''}">${isOpen ? '✕' : '+'}</span>
-                        <span class="categoria-nombre">${cat}</span>
-                        <span class="categoria-cantidad">${itemsCat.length} ítems</span>
-                    </div>
-                    <div class="categoria-items ${isOpen ? 'open' : ''}">
-                        ${itemsCat.map(item => {
-                            const actual = stockActual(item);
-                            const e = estadoItem(actual, item.minimo, item);
-                            return `<div class="categoria-subitem">
-                                <span class="sub-codigo">${item.codigo}</span>
-                                <span class="sub-desc">${item.descripcion}</span>
-                                <span class="sub-stock" style="color:${actual <= item.minimo ? e.color : 'var(--texto)'}">${actual}</span>
-                                <span class="sub-min">Mín: ${item.minimo}</span>
-                                <span class="sub-ubic">${item.ubicacion || '—'}</span>
-                                <span class="sub-estado"><span class="badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;font-size:10px;padding:1px 8px;">${e.label}</span></span>
-                            </div>`;
-                        }).join('')}
-                    </div>
-                </div>`;
-            });
-
-            container.innerHTML = html;
-        }
-
-        function toggleCategoria(categoria) {
-            categoriasExpandidas[categoria] = !categoriasExpandidas[categoria];
-            renderCategorias();
-        }
-
-        // ============================================================
-        //  BACKUP
-        // ============================================================
-        function openBackupModal() {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden acceder a backups', false);
-                return;
-            }
-            document.getElementById('backupModal').classList.add('show');
-            document.getElementById('restoreInfo').style.display = 'none';
-            pendingRestoreData = null;
-        }
-
-        function closeBackupModal() { document.getElementById('backupModal').classList.remove('show');
-            pendingRestoreData = null; }
-
-        function downloadBackup() {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden descargar backups', false);
-                return;
-            }
-
-            showLoading(true);
-            apiCall('/api/backup')
-                .then(data => {
-                    showLoading(false);
-                    const wb = XLSX.utils.book_new();
-
-                    const itemsData = data.items.map(item => ({
-                        'Código': item.codigo,
-                        'Descripción': item.descripcion,
-                        'Categoría': item.categoria || '',
-                        'Unidad': item.unidad || 'Unidad',
-                        'Stock Inicial': item.inicial || 0,
-                        'Stock Mínimo': item.minimo || 0,
-                        'Stock Máximo': item.maximo || 0,
-                        'Ubicación': item.ubicacion || '',
-                        'Planta': item.planta || '',
-                        'Crítico': item.critico || 'NO',
-                        'Observaciones': item.obs || ''
-                    }));
-
-                    const wsItems = XLSX.utils.json_to_sheet(itemsData);
-                    XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
-
-                    const movsData = data.movimientos.map(m => ({
-                        'Fecha': m.fecha || '',
-                        'Hora': m.hora || '',
-                        'Tipo': m.tipo || '',
-                        'Código': m.codigo || '',
-                        'Descripción': m.descripcion || '',
-                        'Cantidad': m.cantidad || 0,
-                        'Responsable': m.responsable || '',
-                        'OT/Referencia': m.ot || '',
-                        'Sector/Destino': m.sector || '',
-                        'Observaciones': m.obs || ''
-                    }));
-
-                    const wsMovs = XLSX.utils.json_to_sheet(movsData);
-                    XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimientos');
-
-                    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-                    const blob = new Blob([wbout], { type: 'application/octet-stream' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'backup_pañol.xlsx';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    setTimeout(() => URL.revokeObjectURL(link.href), 100);
-                    showToast('✅ Backup descargado como backup_pañol.xlsx');
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showToast('❌ Error al generar backup: ' + err.message, false);
-                });
-        }
-
-        function restoreBackup(event) {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden restaurar backups', false);
-                return;
-            }
-
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const wb = XLSX.read(e.target.result, { type: 'array' });
-
-                    const wsItems = wb.Sheets['Ítems'];
-                    if (!wsItems) throw new Error('No se encontró la hoja "Ítems"');
-                    const itemsData = XLSX.utils.sheet_to_json(wsItems);
-
-                    const wsMovs = wb.Sheets['Movimientos'];
-                    let movsData = [];
-                    if (wsMovs) {
-                        movsData = XLSX.utils.sheet_to_json(wsMovs);
-                    }
-
-                    if (!itemsData || itemsData.length === 0) {
-                        throw new Error('No se encontraron ítems en la hoja "Ítems"');
-                    }
-
-                    const restoredItems = itemsData.map(row => ({
-                        codigo: String(row['Código'] || '').trim(),
-                        descripcion: String(row['Descripción'] || '').trim(),
-                        categoria: String(row['Categoría'] || 'Sin categoría').trim() || 'Sin categoría',
-                        unidad: String(row['Unidad'] || 'Unidad').trim() || 'Unidad',
-                        inicial: Number(row['Stock Inicial']) || 0,
-                        minimo: Number(row['Stock Mínimo']) || 0,
-                        maximo: Number(row['Stock Máximo']) || 0,
-                        ubicacion: String(row['Ubicación'] || '').trim(),
-                        planta: String(row['Planta'] || '').trim(),
-                        critico: ['SI', 'NO'].includes(String(row['Crítico'] || '').toUpperCase()) ? String(row['Crítico'])
-                            .toUpperCase() : 'NO',
-                        obs: String(row['Observaciones'] || '').trim()
-                    }));
-
-                    const validItems = restoredItems.filter(item => item.codigo && item.descripcion);
-                    if (validItems.length === 0) {
-                        throw new Error('No hay ítems válidos (código y descripción son obligatorios)');
-                    }
-
-                    const restoredMovs = movsData.map(row => ({
-                        fecha: String(row['Fecha'] || new Date().toLocaleDateString('es-AR')),
-                        hora: String(row['Hora'] || new Date().toLocaleTimeString('es-AR', { hour: '2-digit',
-                            minute: '2-digit' })),
-                        tipo: String(row['Tipo'] || 'ENTRADA'),
-                        codigo: String(row['Código'] || '').trim(),
-                        descripcion: String(row['Descripción'] || '').trim(),
-                        cantidad: Number(row['Cantidad']) || 0,
-                        responsable: String(row['Responsable'] || '').trim(),
-                        ot: String(row['OT/Referencia'] || '').trim(),
-                        sector: String(row['Sector/Destino'] || '').trim(),
-                        obs: String(row['Observaciones'] || '').trim(),
-                        id: Date.now() + Math.random() * 1000
-                    }));
-
-                    pendingRestoreData = { items: validItems, movs: restoredMovs };
-
-                    const infoDiv = document.getElementById('restoreInfo');
-                    infoDiv.style.display = 'block';
-                    infoDiv.innerHTML = `
-                        <div class="info-box success">
-                            <strong>✅ Backup listo para restaurar</strong><br>
-                            📦 Ítems: ${validItems.length}<br>
-                            📋 Movimientos: ${restoredMovs.length}
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-cancel" onclick="cancelRestore()">Cancelar</button>
-                            <button class="btn btn-primary" onclick="confirmRestore()">✅ Confirmar restauración</button>
-                        </div>
-                    `;
-                } catch (err) {
-                    const infoDiv = document.getElementById('restoreInfo');
-                    infoDiv.style.display = 'block';
-                    infoDiv.innerHTML =
-                        `<div class="info-box error">❌ ${err.message || 'Error al leer el archivo'}</div>`;
-                    pendingRestoreData = null;
-                }
-            };
-            reader.readAsArrayBuffer(file);
-            event.target.value = '';
-        }
-
-        function cancelRestore() { document.getElementById('restoreInfo').style.display = 'none';
-            pendingRestoreData = null; }
-
-        function confirmRestore() {
-            if (!pendingRestoreData) { showToast('No hay datos para restaurar', false); return; }
-
-            showLoading(true);
-            apiCall('/api/backup/restore', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        items: pendingRestoreData.items,
-                        movimientos: pendingRestoreData.movs,
-                        usuarios: {}
-                    })
-                })
-                .then(() => {
-                    showLoading(false);
-                    document.getElementById('restoreInfo').style.display = 'none';
-                    pendingRestoreData = null;
-                    closeBackupModal();
-                    showToast('✅ Datos restaurados correctamente');
-                    loadDataFromServer();
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showToast('❌ Error al restaurar: ' + err.message, false);
-                });
-        }
-
-        // ============================================================
-        //  IMPORT EXCEL
-        // ============================================================
-        function openImportModal() {
-            if (currentUser.rol !== 'admin') {
-                showToast('Solo administradores pueden importar datos', false);
-                return;
-            }
-            document.getElementById('importModal').classList.add('show');
-            resetImportModal();
-        }
-
-        function closeImportModal() { document.getElementById('importModal').classList.remove('show'); }
-
-        function resetImportModal() {
-            document.getElementById('dropZone').classList.remove('loaded');
-            document.getElementById('dropIcon').textContent = '📊';
-            document.getElementById('dropText').textContent = 'Hacé clic o arrastrá tu archivo Excel';
-            document.getElementById('importInfo').style.display = 'none';
-            document.getElementById('previewContainer').style.display = 'none';
-            document.getElementById('importButtons').style.display = 'none';
-            importData = null;
-        }
-
-        function handleDrop(event) { event.preventDefault(); if (event.dataTransfer.files[0]) processFile(event.dataTransfer
-                .files[0]); }
-
-        function handleFileSelect(event) { if (event.target.files[0]) processFile(event.target.files[0]); }
-
-        function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g,
-                ''); }
-
-        function mapearColumnas(headers) {
-            const map = {};
-            headers.forEach((h, i) => {
-                const n = norm(h);
-                if (n.includes('cod')) map.codigo = i;
-                if (n.includes('desc')) map.descripcion = i;
-                if (n === 'stock' || n === 'stockactual' || n === 'cantidad') map.stock = i;
-                if (n.includes('ubic') || n.includes('hub')) map.ubicacion = i;
-                if (n.includes('plant')) map.planta = i;
-                if (n.includes('min')) map.minimo = i;
-                if (n.includes('max')) map.maximo = i;
-                if (n.includes('obs') || n.includes('nota')) map.obs = i;
-                if (n.includes('cat')) map.categoria = i;
-                if (n.includes('unid')) map.unidad = i;
-                if (n.includes('crit') || n.includes('critico')) map.critico = i;
-            });
-            return map;
-        }
-
-        function processFile(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const wb = XLSX.read(e.target.result, { type: 'array' });
-                    const ws = wb.Sheets[wb.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-                    if (rows.length < 2) { showImportError('Archivo vacío'); return; }
-                    let hdrIdx = 0;
-                    for (let i = 0; i < Math.min(5, rows.length); i++) { if (rows[i].some(c => typeof c === 'string' && c
-                                .trim())) { hdrIdx =
-                                i; break; } }
-                    const map = mapearColumnas(rows[hdrIdx]);
-                    if (map.codigo === undefined || map.descripcion === undefined) { showImportError(
-                            'Columnas obligatorias: Código y Descripción'); return; }
-                    importData = rows.slice(hdrIdx + 1).filter(r => r[map.codigo] && String(r[map.codigo]).trim()).map(r => {
-                        let criticoVal = String(r[map.critico] || '').trim().toUpperCase();
-                        if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
-                        return {
-                            codigo: String(r[map.codigo] || '').trim(),
-                            descripcion: String(r[map.descripcion] || '').trim(),
-                            inicial: Number(r[map.stock] ?? 0) || 0,
-                            minimo: Number(r[map.minimo] ?? 0) || 0,
-                            maximo: Number(r[map.maximo] ?? 0) || 0,
-                            ubicacion: String(r[map.ubicacion] || '').trim(),
-                            planta: String(r[map.planta] || '').trim(),
-                            obs: String(r[map.obs] || '').trim(),
-                            categoria: String(r[map.categoria] || 'Sin categoría').trim() || 'Sin categoría',
-                            unidad: String(r[map.unidad] || 'Unidad').trim() || 'Unidad',
-                            critico: criticoVal
-                        };
-                    });
-                    document.getElementById('dropZone').classList.add('loaded');
-                    document.getElementById('dropIcon').textContent = '✅';
-                    document.getElementById('dropText').textContent = file.name;
-                    document.getElementById('importInfo').style.display = 'block';
-                    document.getElementById('importInfo').className = 'info-box success';
-                    document.getElementById('importInfo').textContent = '✓ Columnas: ' + Object.keys(map).join(' · ');
-                    document.getElementById('previewContainer').style.display = 'block';
-                    document.getElementById('previewContainer').innerHTML =
-                        `<div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">Vista previa (${Math.min(5,importData.length)} de ${importData.length})</div><table class="preview-table"><thead><tr><th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th></tr></thead><tbody>${importData.slice(0,5).map((r,i) => `<tr style="background:${i%2===0?'#fff':'var(--bg)'}"><td style="font-weight:700;color:var(--verde);">${r.codigo}</td><td>${r.descripcion}</td><td style="text-align:center;">${r.inicial}</td><td style="text-align:center;">${r.minimo}</td><td style="text-align:center;">${r.maximo}</td><td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td></tr>`).join('')}</tbody></table>`;
-                    document.getElementById('importButtons').style.display = 'flex';
-                } catch (err) { showImportError('Error al leer archivo'); }
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function showImportError(msg) {
-            document.getElementById('importInfo').style.display = 'block';
-            document.getElementById('importInfo').className = 'info-box error';
-            document.getElementById('importInfo').textContent = '⚠️ ' + msg;
-        }
-
-        function confirmImport() {
-            if (!importData || currentUser.rol !== 'admin') return;
-
-            showLoading(true);
-            const promises = importData.map(item =>
-                apiCall('/api/items', {
-                    method: 'POST',
-                    body: JSON.stringify(item)
-                }).catch(err => console.log('Item ya existe:', item.codigo))
-            );
-
-            Promise.allSettled(promises)
-                .then(() => {
-                    showLoading(false);
-                    closeImportModal();
-                    categoriasExpandidas = {};
-                    showToast('✅ ' + importData.length + ' ítems importados');
-                    loadDataFromServer();
-                })
-                .catch(err => {
-                    showLoading(false);
-                    showToast('❌ Error al importar: ' + err.message, false);
-                });
-        }
-
-        // ============================================================
-        //  INICIO - Verificar token guardado
-        // ============================================================
-        const savedToken = localStorage.getItem('panol_token');
-        if (savedToken) {
-            token = savedToken;
-            fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.error) {
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('appScreen').style.display = 'block';
-                        document.getElementById('userNameDisplay').textContent = '👤 usuario';
-                        const rolSpan = document.getElementById('userRolDisplay');
-                        rolSpan.textContent = 'admin';
-                        rolSpan.className = 'rol admin-badge';
-                        loadDataFromServer();
-                        iniciarPing();
-                    } else {
-                        localStorage.removeItem('panol_token');
-                    }
-                })
-                .catch(() => {
-                    localStorage.removeItem('panol_token');
-                });
-        }
-
-        // Enter para login
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') {
-                doLogin();
-            }
-        });
-    </script>
+    <!-- ========================================= -->
+    <!-- SCRIPTS -->
+    <!-- ========================================= -->
+    <script src="app.js"></script>
 </body>
 </html>
