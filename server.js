@@ -9,6 +9,20 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// ============================================================
+//  SERVIR ARCHIVOS ESTÁTICOS (HTML, CSS, JS)
+//  ¡DEBEN IR ANTES DE LAS RUTAS API!
+// ============================================================
+app.use(express.static(path.join(__dirname)));
+
+// Ruta principal - Sirve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ============================================================
+//  BASE DE DATOS Y CONFIGURACIÓN
+// ============================================================
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 if (!fs.existsSync(DATA_FILE)) {
@@ -51,6 +65,9 @@ function writeData(data) {
     }
 }
 
+// ============================================================
+//  MIDDLEWARE DE AUTENTICACIÓN
+// ============================================================
 function authenticate(req, res, next) {
     const token = req.headers['authorization'];
     if (!token) {
@@ -66,6 +83,10 @@ function authenticate(req, res, next) {
     req.user = { username: user[0], ...user[1] };
     next();
 }
+
+// ============================================================
+//  RUTAS API
+// ============================================================
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
@@ -280,15 +301,9 @@ app.get('/api/stats', authenticate, (req, res) => {
     res.json(stats);
 });
 
+// ============================================================
+//  INICIAR SERVIDOR - SIEMPRE AL FINAL
+// ============================================================
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
-});
-
-// Servir archivos estáticos (HTML, CSS, JS)
-const path = require('path');
-app.use(express.static(path.join(__dirname)));
-
-// Ruta principal - Sirve index.html
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
 });
