@@ -62,9 +62,17 @@ function doLogin() {
         rolSpan.textContent = data.rol;
         rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
         
-        // Mostrar admin tab solo para admin
+        // ============================================================
+        //  OCULTAR BOTONES DE ADMIN PARA EMPLEADOS
+        // ============================================================
         if (data.rol === 'admin') {
             $('adminTabBtn').style.display = 'block';
+            // Mostrar botones de admin en el header (Importar Excel, Backup)
+            document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
+        } else {
+            $('adminTabBtn').style.display = 'none';
+            // Ocultar botones de admin en el header
+            document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'none');
         }
         
         loadDataFromServer();
@@ -272,8 +280,10 @@ function showToast(msg, success = true) {
 function filterByKPI(filter) {
     activeKpiFilter = filter;
     switchTab('stock');
-    $('search-input').value = '';
-    $('category-select').value = 'Todas';
+    const searchInput = document.querySelector('.search-input');
+    const categorySelect = document.querySelector('.category-select');
+    if (searchInput) searchInput.value = '';
+    if (categorySelect) categorySelect.value = 'Todas';
     renderStock();
 }
 
@@ -311,10 +321,9 @@ function renderStock() {
         return;
     }
 
-    tableBody.innerHTML = filtrados.map((item, idx) => {
+    tableBody.innerHTML = filtrados.map((item) => {
         const actual = stockActual(item);
         const e = estadoItem(actual, item.minimo, item);
-        const criticoLabel = esCritico(item) ? 'SI' : 'NO';
         return `<div class="table-row" onclick="editItemFromTable('${item.codigo}')">
             <span class="code-cell">${item.codigo}</span>
             <span class="desc-cell">${item.descripcion}</span>
@@ -396,8 +405,59 @@ function saveEdit() {
         showToast('Solo administradores pueden editar', false);
         return;
     }
-    // ... (resto del código de editar igual que antes)
-    showToast('✅ Ítem actualizado');
+    if (!editingItemCodigo) {
+        showToast('Seleccioná un ítem para editar', false);
+        return;
+    }
+    
+    const newCodigo = $('editCodigo').value.trim();
+    const newDescripcion = $('editDescripcion').value.trim();
+    if (!newCodigo || !newDescripcion) {
+        showToast('Código y descripción son obligatorios', false);
+        return;
+    }
+    
+    if (newCodigo !== editingItemCodigo && items.find(i => i.codigo === newCodigo)) {
+        showToast('El código ' + newCodigo + ' ya existe', false);
+        return;
+    }
+    
+    let criticoVal = $('editCritico').value.trim().toUpperCase();
+    if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
+    
+    const updatedItem = {
+        codigo: newCodigo,
+        descripcion: newDescripcion,
+        categoria: $('editCategoria').value.trim() || 'Sin categoría',
+        unidad: $('editUnidad').value,
+        inicial: Number($('editInicial').value) || 0,
+        minimo: Number($('editMinimo').value) || 1,
+        maximo: Number($('editMaximo').value) || 10,
+        ubicacion: $('editUbicacion').value.trim(),
+        planta: $('editPlanta').value.trim(),
+        critico: criticoVal,
+        obs: $('editObs').value.trim()
+    };
+    
+    showLoading(true);
+    apiCall(`/api/items/${editingItemCodigo}`, {
+        method: 'PUT',
+        body: JSON.stringify(updatedItem)
+    })
+    .then(() => {
+        const idx = items.findIndex(i => i.codigo === editingItemCodigo);
+        if (idx !== -1) items[idx] = updatedItem;
+        editingItemCodigo = newCodigo;
+        showLoading(false);
+        showToast('✅ Ítem actualizado correctamente');
+        loadItemForEdit(newCodigo);
+        renderStock();
+        renderCategorias();
+    })
+    .catch(err => {
+        showLoading(false);
+        showToast('❌ Error: ' + err.message, false);
+    });
 }
 
 function cancelEdit() {
@@ -432,7 +492,29 @@ function updateNewItemVisibility() {
 }
 
 function toggleNewItemForm() {
-    // ... (igual que antes)
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden crear nuevos ítems', false);
+        return;
+    }
+    isCreatingNewItem = !isCreatingNewItem;
+    const form = $('newItemForm');
+    const codigoGroup = $('codigoExistenteGroup');
+    const itemInfo = $('itemInfo');
+    const toggleIcon = $('toggleNewItemIcon');
+    const toggleText = $('toggleNewItemText');
+    if (isCreatingNewItem) {
+        form.classList.add('show');
+        codigoGroup.style.opacity = '0.5';
+        codigoGroup.style.pointerEvents = 'none';
+        itemInfo.classList.remove('show');
+        $('suggestions').classList.remove('show');
+        toggleIcon.textContent = '➖';
+        toggleText.textContent = 'Seleccionar ítem existente';
+        selectedItemCodigo = null;
+        $('codigoInput').value = '';
+    } else {
+        hideNewItemForm();
+    }
 }
 
 function hideNewItemForm() {
@@ -442,22 +524,206 @@ function hideNewItemForm() {
     $('codigoExistenteGroup').style.pointerEvents = 'auto';
     $('toggleNewItemIcon').textContent = '➕';
     $('toggleNewItemText').textContent = 'Crear nuevo ítem';
+    ['newCodigo', 'newDescripcion', 'newCategoria', 'newUbicacion', 'newPlanta', 'newCritico'].forEach(id => {
+        const el = $(id);
+        if (el) el.value = '';
+    });
+    const newInicial = $('newInicial');
+    const newMinimo = $('newMinimo');
+    const newMaximo = $('newMaximo');
+    if (newInicial) newInicial.value = '0';
+    if (newMinimo) newMinimo.value = '1';
+    if (newMaximo) newMaximo.value = '10';
 }
 
 function searchItem() {
-    // ... (igual que antes)
+    if (isCreatingNewItem) return;
+    const val = $('codigoInput').value.trim().toUpperCase();
+    const suggestions = $('suggestions');
+    const itemInfo = $('itemInfo');
+    if (!val) {
+        suggestions.classList.remove('show');
+        itemInfo.classList.remove('show');
+        selectedItemCodigo = null;
+        return;
+    }
+    const itemExacto = items.find(i => i.codigo === val);
+    if (itemExacto) {
+        suggestions.classList.remove('show');
+        mostrarInfoItem(itemExacto);
+        selectedItemCodigo = itemExacto.codigo;
+    } else if (val.length >= 2) {
+        const results = items.filter(i => 
+            i.codigo.toLowerCase().includes(val.toLowerCase()) || 
+            i.descripcion.toLowerCase().includes(val.toLowerCase())
+        ).slice(0, 6);
+        if (results.length > 0) {
+            suggestions.innerHTML = results.map(s =>
+                `<div class="suggestion-item" onclick="selectItem('${s.codigo}')"><span><strong style="color:var(--verde);">${s.codigo}</strong> ${s.descripcion}</span><span>Stock: ${stockActual(s)}</span></div>`
+            ).join('');
+            if (currentTipo === 'ENTRADA' && currentUser?.rol === 'admin') {
+                suggestions.innerHTML += `<div class="suggestion-item new-item" onclick="toggleNewItemForm();$('newCodigo').value='${val}';$('suggestions').classList.remove('show');"><span>🆕 Crear: ${val}</span></div>`;
+            }
+            suggestions.classList.add('show');
+            itemInfo.classList.remove('show');
+            selectedItemCodigo = null;
+        } else {
+            suggestions.classList.remove('show');
+            itemInfo.classList.remove('show');
+            if (currentTipo === 'ENTRADA' && val.length >= 2 && currentUser?.rol === 'admin') {
+                suggestions.innerHTML = `<div class="suggestion-item new-item" onclick="toggleNewItemForm();$('newCodigo').value='${val}';$('suggestions').classList.remove('show');"><span>🆕 Crear: ${val}</span></div>`;
+                suggestions.classList.add('show');
+            }
+        }
+    }
+}
+
+function mostrarInfoItem(item) {
+    $('itemInfoDesc').textContent = item.descripcion;
+    $('itemInfoDetails').textContent = (item.categoria || '') + (item.ubicacion ? ' · ' + item.ubicacion : '') + (item.planta ? ' · ' + item.planta : '') + ' · Crítico: ' + (item.critico || 'NO');
+    $('itemInfoStock').textContent = stockActual(item);
+    $('itemInfoUnit').textContent = (item.unidad || 'unidades') + ' actuales';
+    $('itemInfo').classList.add('show');
 }
 
 function selectItem(codigo) {
-    // ... (igual que antes)
+    $('codigoInput').value = codigo;
+    $('suggestions').classList.remove('show');
+    const item = items.find(i => i.codigo === codigo);
+    if (item) {
+        mostrarInfoItem(item);
+        selectedItemCodigo = codigo;
+        hideNewItemForm();
+    }
+    $('cantidadInput').focus();
 }
 
 function clearItemSelection() {
-    // ... (igual que antes)
+    $('codigoInput').value = '';
+    $('itemInfo').classList.remove('show');
+    $('suggestions').classList.remove('show');
+    selectedItemCodigo = null;
+    hideNewItemForm();
+    $('codigoInput').focus();
 }
 
 function registrarMovimiento() {
-    // ... (igual que antes)
+    const cantidad = Number($('cantidadInput').value);
+    const responsable = $('responsableInput').value.trim() || currentUser?.username || '';
+    const ot = $('otInput').value.trim();
+    const sector = $('sectorInput').value.trim();
+    const obs = $('obsInput').value.trim();
+    
+    if (!cantidad || cantidad <= 0) {
+        showToast('Ingresá una cantidad válida', false);
+        return;
+    }
+    
+    let codigo, descripcion, categoria, unidad, minimo, maximo, ubicacion, planta, critico;
+    
+    if (isCreatingNewItem) {
+        if (currentUser?.rol !== 'admin') {
+            showToast('Solo administradores pueden crear nuevos ítems', false);
+            return;
+        }
+        const newCodigo = $('newCodigo').value.trim();
+        const newDescripcion = $('newDescripcion').value.trim();
+        if (!newCodigo) { showToast('Ingresá el código', false); return; }
+        if (!newDescripcion) { showToast('Ingresá la descripción', false); return; }
+        if (items.find(i => i.codigo === newCodigo)) { showToast('El código ya existe', false); return; }
+        
+        codigo = newCodigo;
+        descripcion = newDescripcion;
+        categoria = $('newCategoria').value.trim() || 'Sin categoría';
+        unidad = $('newUnidad').value;
+        minimo = Number($('newMinimo').value) || 1;
+        maximo = Number($('newMaximo').value) || 10;
+        ubicacion = $('newUbicacion').value.trim();
+        planta = $('newPlanta').value.trim() || 'Planta 1';
+        critico = $('newCritico').value.trim().toUpperCase() || 'NO';
+        if (!['SI', 'NO'].includes(critico)) critico = 'NO';
+        
+        showLoading(true);
+        apiCall('/api/items', {
+            method: 'POST',
+            body: JSON.stringify({
+                codigo, descripcion, categoria, unidad,
+                inicial: Number($('newInicial').value) || 0,
+                minimo, maximo, ubicacion, planta, critico, obs: ''
+            })
+        })
+        .then(() => {
+            return registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs,
+                categoria, unidad, minimo, maximo, ubicacion, planta, critico);
+        })
+        .then(() => {
+            showLoading(false);
+            limpiarFormularioMovimiento();
+            showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+        return;
+    }
+    
+    if (!selectedItemCodigo) {
+        const val = $('codigoInput').value.trim();
+        const item = items.find(i => i.codigo === val);
+        if (!item) { showToast('Seleccioná un ítem', false); return; }
+        selectedItemCodigo = item.codigo;
+    }
+    
+    const item = items.find(i => i.codigo === selectedItemCodigo);
+    if (!item) { showToast('Ítem no encontrado', false); return; }
+    codigo = item.codigo;
+    descripcion = item.descripcion;
+    
+    if (currentTipo === 'SALIDA' && cantidad > stockActual(item)) {
+        showToast('Stock insuficiente. Actual: ' + stockActual(item), false);
+        return;
+    }
+    
+    showLoading(true);
+    registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs)
+        .then(() => {
+            showLoading(false);
+            limpiarFormularioMovimiento();
+            showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+function registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs, categoria, unidad, minimo, maximo, ubicacion, planta, critico) {
+    const body = { codigo, descripcion, tipo: currentTipo, cantidad, responsable, ot, sector, obs };
+    if (categoria) body.categoria = categoria;
+    if (unidad) body.unidad = unidad;
+    if (minimo) body.minimo = minimo;
+    if (maximo) body.maximo = maximo;
+    if (ubicacion) body.ubicacion = ubicacion;
+    if (planta) body.planta = planta;
+    if (critico) body.critico = critico;
+    
+    return apiCall('/api/movimiento', {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+}
+
+function limpiarFormularioMovimiento() {
+    ['codigoInput', 'cantidadInput', 'otInput', 'obsInput'].forEach(id => {
+        const el = $(id);
+        if (el) el.value = '';
+    });
+    $('itemInfo').classList.remove('show');
+    selectedItemCodigo = null;
+    hideNewItemForm();
 }
 
 // ============================================================
@@ -538,7 +804,6 @@ function descargarPlantilla() {
     const ws = XLSX.utils.aoa_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'Ítems');
     
-    // Ajustar ancho de columnas
     ws['!cols'] = [
         { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
         { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 15 },
@@ -582,15 +847,152 @@ function closeBackupModal() {
 }
 
 function downloadBackup() {
-    // ... (igual que antes)
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden descargar backups', false);
+        return;
+    }
+    
+    showLoading(true);
+    apiCall('/api/backup')
+        .then(data => {
+            showLoading(false);
+            const wb = XLSX.utils.book_new();
+
+            const itemsData = data.items.map(item => ({
+                'Código': item.codigo,
+                'Descripción': item.descripcion,
+                'Categoría': item.categoria || '',
+                'Unidad': item.unidad || 'Unidad',
+                'Stock Inicial': item.inicial || 0,
+                'Stock Mínimo': item.minimo || 0,
+                'Stock Máximo': item.maximo || 0,
+                'Ubicación': item.ubicacion || '',
+                'Planta': item.planta || '',
+                'Crítico': item.critico || 'NO',
+                'Observaciones': item.obs || ''
+            }));
+
+            const wsItems = XLSX.utils.json_to_sheet(itemsData);
+            XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
+
+            const movsData = data.movimientos.map(m => ({
+                'Fecha': m.fecha || '',
+                'Hora': m.hora || '',
+                'Tipo': m.tipo || '',
+                'Código': m.codigo || '',
+                'Descripción': m.descripcion || '',
+                'Cantidad': m.cantidad || 0,
+                'Responsable': m.responsable || '',
+                'OT/Referencia': m.ot || '',
+                'Sector/Destino': m.sector || '',
+                'Observaciones': m.obs || ''
+            }));
+
+            const wsMovs = XLSX.utils.json_to_sheet(movsData);
+            XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimientos');
+
+            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/octet-stream' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'backup_pañol.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(link.href), 100);
+            showToast('✅ Backup descargado');
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
 }
 
 function restoreBackup(event) {
-    // ... (igual que antes)
-}
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden restaurar backups', false);
+        return;
+    }
+    
+    const file = event.target.files[0];
+    if (!file) return;
 
-function confirmRestore() {
-    // ... (igual que antes)
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+
+            const wsItems = wb.Sheets['Ítems'];
+            if (!wsItems) throw new Error('No se encontró la hoja "Ítems"');
+            const itemsData = XLSX.utils.sheet_to_json(wsItems);
+
+            const wsMovs = wb.Sheets['Movimientos'];
+            let movsData = [];
+            if (wsMovs) {
+                movsData = XLSX.utils.sheet_to_json(wsMovs);
+            }
+
+            if (!itemsData || itemsData.length === 0) {
+                throw new Error('No se encontraron ítems');
+            }
+
+            const restoredItems = itemsData.map(row => ({
+                codigo: String(row['Código'] || '').trim(),
+                descripcion: String(row['Descripción'] || '').trim(),
+                categoria: String(row['Categoría'] || 'Sin categoría').trim() || 'Sin categoría',
+                unidad: String(row['Unidad'] || 'Unidad').trim() || 'Unidad',
+                inicial: Number(row['Stock Inicial']) || 0,
+                minimo: Number(row['Stock Mínimo']) || 0,
+                maximo: Number(row['Stock Máximo']) || 0,
+                ubicacion: String(row['Ubicación'] || '').trim(),
+                planta: String(row['Planta'] || '').trim(),
+                critico: ['SI', 'NO'].includes(String(row['Crítico'] || '').toUpperCase()) ? String(row['Crítico']).toUpperCase() : 'NO',
+                obs: String(row['Observaciones'] || '').trim()
+            }));
+
+            const validItems = restoredItems.filter(item => item.codigo && item.descripcion);
+            if (validItems.length === 0) {
+                throw new Error('No hay ítems válidos');
+            }
+
+            const restoredMovs = movsData.map(row => ({
+                fecha: String(row['Fecha'] || new Date().toLocaleDateString('es-AR')),
+                hora: String(row['Hora'] || new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })),
+                tipo: String(row['Tipo'] || 'ENTRADA'),
+                codigo: String(row['Código'] || '').trim(),
+                descripcion: String(row['Descripción'] || '').trim(),
+                cantidad: Number(row['Cantidad']) || 0,
+                responsable: String(row['Responsable'] || '').trim(),
+                ot: String(row['OT/Referencia'] || '').trim(),
+                sector: String(row['Sector/Destino'] || '').trim(),
+                obs: String(row['Observaciones'] || '').trim(),
+                id: Date.now() + Math.random() * 1000
+            }));
+
+            pendingRestoreData = { items: validItems, movs: restoredMovs };
+
+            const infoDiv = $('restoreInfo');
+            infoDiv.style.display = 'block';
+            infoDiv.innerHTML = `
+                <div class="info-box success">
+                    <strong>✅ Backup listo para restaurar</strong><br>
+                    📦 Ítems: ${validItems.length}<br>
+                    📋 Movimientos: ${restoredMovs.length}
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-cancel" onclick="cancelRestore()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="confirmRestore()">✅ Confirmar</button>
+                </div>
+            `;
+        } catch (err) {
+            const infoDiv = $('restoreInfo');
+            infoDiv.style.display = 'block';
+            infoDiv.innerHTML = `<div class="info-box error">❌ ${err.message || 'Error al leer el archivo'}</div>`;
+            pendingRestoreData = null;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
 }
 
 function cancelRestore() {
@@ -598,12 +1000,41 @@ function cancelRestore() {
     pendingRestoreData = null;
 }
 
+function confirmRestore() {
+    if (!pendingRestoreData) {
+        showToast('No hay datos para restaurar', false);
+        return;
+    }
+    
+    showLoading(true);
+    apiCall('/api/backup/restore', {
+        method: 'POST',
+        body: JSON.stringify({
+            items: pendingRestoreData.items,
+            movimientos: pendingRestoreData.movs,
+            usuarios: {}
+        })
+    })
+    .then(() => {
+        showLoading(false);
+        $('restoreInfo').style.display = 'none';
+        pendingRestoreData = null;
+        closeBackupModal();
+        showToast('✅ Datos restaurados correctamente');
+        loadDataFromServer();
+    })
+    .catch(err => {
+        showLoading(false);
+        showToast('❌ Error: ' + err.message, false);
+    });
+}
+
 // ============================================================
-//  IMPORT EXCEL
+//  IMPORT EXCEL - COMPLETO Y FUNCIONAL
 // ============================================================
 function openImportModal() {
     if (currentUser?.rol !== 'admin') {
-        showToast('Solo administradores', false);
+        showToast('Solo administradores pueden importar', false);
         return;
     }
     $('importModal').classList.add('show');
@@ -615,7 +1046,14 @@ function closeImportModal() {
 }
 
 function resetImportModal() {
-    // ... (igual que antes)
+    const dropZone = $('dropZone');
+    if (dropZone) dropZone.classList.remove('loaded');
+    $('dropIcon').textContent = '📊';
+    $('dropText').textContent = 'Hacé clic o arrastrá tu archivo Excel';
+    $('importInfo').style.display = 'none';
+    $('previewContainer').style.display = 'none';
+    $('importButtons').style.display = 'none';
+    importData = null;
 }
 
 function handleDrop(event) {
@@ -628,11 +1066,174 @@ function handleFileSelect(event) {
 }
 
 function processFile(file) {
-    // ... (igual que antes)
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            
+            if (rows.length < 2) {
+                showImportError('Archivo vacío');
+                return;
+            }
+            
+            // Encontrar la fila de encabezados
+            let hdrIdx = 0;
+            for (let i = 0; i < Math.min(5, rows.length); i++) {
+                if (rows[i].some(c => typeof c === 'string' && c.trim())) {
+                    hdrIdx = i;
+                    break;
+                }
+            }
+            
+            // Mapear columnas
+            const map = mapearColumnas(rows[hdrIdx]);
+            
+            if (map.codigo === undefined || map.descripcion === undefined) {
+                showImportError('Columnas obligatorias: Código y Descripción');
+                return;
+            }
+            
+            // Procesar datos
+            importData = rows.slice(hdrIdx + 1)
+                .filter(r => r[map.codigo] && String(r[map.codigo]).trim())
+                .map(r => {
+                    let criticoVal = String(r[map.critico] || '').trim().toUpperCase();
+                    if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
+                    return {
+                        codigo: String(r[map.codigo] || '').trim(),
+                        descripcion: String(r[map.descripcion] || '').trim(),
+                        categoria: String(r[map.categoria] || 'Sin categoría').trim() || 'Sin categoría',
+                        unidad: String(r[map.unidad] || 'Unidad').trim() || 'Unidad',
+                        inicial: Number(r[map.stock] ?? 0) || 0,
+                        minimo: Number(r[map.minimo] ?? 0) || 0,
+                        maximo: Number(r[map.maximo] ?? 0) || 0,
+                        ubicacion: String(r[map.ubicacion] || '').trim(),
+                        planta: String(r[map.planta] || '').trim(),
+                        critico: criticoVal,
+                        obs: String(r[map.obs] || '').trim()
+                    };
+                });
+            
+            if (importData.length === 0) {
+                showImportError('No se encontraron datos válidos');
+                return;
+            }
+            
+            // Mostrar vista previa
+            $('dropZone').classList.add('loaded');
+            $('dropIcon').textContent = '✅';
+            $('dropText').textContent = file.name + ` (${importData.length} ítems)`;
+            
+            $('importInfo').style.display = 'block';
+            $('importInfo').className = 'info-box success';
+            $('importInfo').textContent = `✓ Listo para importar ${importData.length} ítems`;
+            
+            // Vista previa
+            const previewContainer = $('previewContainer');
+            previewContainer.style.display = 'block';
+            previewContainer.innerHTML = `
+                <div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">
+                    Vista previa (${Math.min(5, importData.length)} de ${importData.length})
+                </div>
+                <table class="preview-table">
+                    <thead><tr>
+                        <th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th>
+                    </tr></thead>
+                    <tbody>
+                        ${importData.slice(0,5).map((r,i) => `
+                            <tr style="background:${i%2===0?'#fff':'var(--bg)'}">
+                                <td style="font-weight:700;color:var(--verde);">${r.codigo}</td>
+                                <td>${r.descripcion}</td>
+                                <td style="text-align:center;">${r.inicial}</td>
+                                <td style="text-align:center;">${r.minimo}</td>
+                                <td style="text-align:center;">${r.maximo}</td>
+                                <td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td>
+                            </tr>
+                        `).join('')}
+                        ${importData.length > 5 ? `<tr><td colspan="6" style="text-align:center;color:var(--sub);">... y ${importData.length - 5} más</td></tr>` : ''}
+                    </tbody>
+                </table>
+            `;
+            
+            $('importButtons').style.display = 'flex';
+            
+        } catch (err) {
+            showImportError('Error al leer archivo: ' + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function mapearColumnas(headers) {
+    const map = {};
+    headers.forEach((h, i) => {
+        const n = String(h || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+        if (n.includes('cod')) map.codigo = i;
+        if (n.includes('desc')) map.descripcion = i;
+        if (n === 'stock' || n === 'stockactual' || n === 'cantidad') map.stock = i;
+        if (n.includes('ubic')) map.ubicacion = i;
+        if (n.includes('plant')) map.planta = i;
+        if (n.includes('min')) map.minimo = i;
+        if (n.includes('max')) map.maximo = i;
+        if (n.includes('obs') || n.includes('nota')) map.obs = i;
+        if (n.includes('cat')) map.categoria = i;
+        if (n.includes('unid')) map.unidad = i;
+        if (n.includes('crit')) map.critico = i;
+    });
+    return map;
+}
+
+function showImportError(msg) {
+    $('importInfo').style.display = 'block';
+    $('importInfo').className = 'info-box error';
+    $('importInfo').textContent = '⚠️ ' + msg;
 }
 
 function confirmImport() {
-    // ... (igual que antes)
+    if (!importData || currentUser?.rol !== 'admin') {
+        showToast('No hay datos para importar', false);
+        return;
+    }
+
+    showLoading(true);
+    
+    const promises = importData.map(item => {
+        const existe = items.find(i => i.codigo === item.codigo);
+        if (existe) {
+            return apiCall(`/api/items/${item.codigo}`, {
+                method: 'PUT',
+                body: JSON.stringify(item)
+            }).catch(err => {
+                console.log('Error al actualizar:', item.codigo, err.message);
+                return null;
+            });
+        } else {
+            return apiCall('/api/items', {
+                method: 'POST',
+                body: JSON.stringify(item)
+            }).catch(err => {
+                console.log('Error al crear:', item.codigo, err.message);
+                return null;
+            });
+        }
+    });
+
+    Promise.allSettled(promises)
+        .then(results => {
+            showLoading(false);
+            closeImportModal();
+            categoriasExpandidas = {};
+            
+            const procesados = results.filter(r => r.status === 'fulfilled' && r.value?.success !== false).length;
+            showToast(`✅ ${procesados} ítems procesados (importados/actualizados)`);
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error al importar: ' + err.message, false);
+        });
 }
 
 // ============================================================
@@ -652,6 +1253,7 @@ if (savedToken) {
                 rolSpan.textContent = 'admin';
                 rolSpan.className = 'rol admin-badge';
                 $('adminTabBtn').style.display = 'block';
+                document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
                 loadDataFromServer();
                 iniciarPing();
             } else {
