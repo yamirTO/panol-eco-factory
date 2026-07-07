@@ -1,1454 +1,956 @@
-/* ============================================
-   ROOT VARIABLES
-   ============================================ */
-:root {
-    --verde: #1F5C2E;
-    --verdeM: #2E7D32;
-    --verdeC: #E8F5E9;
-    --rojo: #C62828;
-    --rojoC: #FFEBEE;
-    --amarillo: #E65100;
-    --amarC: #FFF8E1;
-    --azul: #1565C0;
-    --azulC: #E3F2FD;
-    --gris: #37474F;
-    --grisC: #ECEFF1;
-    --bg: #F0F4F0;
-    --surface: #FFFFFF;
-    --texto: #1C2B1E;
-    --sub: #607D6B;
-    --borde: #CFD8DC;
-    --shadow: 0 2px 8px rgba(0,0,0,0.08);
-    --radius: 12px;
-    --transition: all 0.3s ease;
-}
-
-/* ============================================
-   RESET & BASE
-   ============================================ */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-}
-
-html, body {
-    height: 100%;
-    width: 100%;
-    overflow-x: hidden;
-}
-
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--texto);
-    min-height: 100vh;
-    min-height: 100dvh;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* ============================================
-   SCROLLBAR
-   ============================================ */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-::-webkit-scrollbar-track {
-    background: var(--bg);
-}
-::-webkit-scrollbar-thumb {
-    background: var(--verde);
-    border-radius: 3px;
-}
-
-/* ============================================
-   LOADING OVERLAY
-   ============================================ */
-.loading-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 999;
-    backdrop-filter: blur(4px);
-}
-.loading-overlay.show {
-    display: flex;
-}
-.loading-spinner {
-    background: #fff;
-    padding: 30px 40px;
-    border-radius: var(--radius);
-    font-weight: 700;
-    font-size: 18px;
-    color: var(--verde);
-    box-shadow: 0 8px 40px rgba(0,0,0,0.2);
-    animation: pulse 1.5s ease-in-out infinite;
-}
-.loading-spinner::after {
-    content: '...';
-    animation: dots 1.5s steps(4) infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-@keyframes dots {
-    0% { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
-}
-
-/* ============================================
-   LOGIN SCREEN
-   ============================================ */
-.login-screen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    min-height: 100dvh;
-    background: linear-gradient(135deg, var(--verde) 0%, #1a4a26 100%);
-    padding: 20px;
-}
-
-.login-container {
-    max-width: 400px;
-    width: 100%;
-    background: var(--surface);
-    padding: 40px 32px;
-    border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    animation: slideUp 0.5s ease;
-}
-
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.login-header {
-    text-align: center;
-    margin-bottom: 28px;
-}
-.login-icon {
-    font-size: 48px;
-    display: block;
-    margin-bottom: 8px;
-}
-.login-title {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--verde);
-    margin-bottom: 4px;
-}
-.login-subtitle {
-    color: var(--sub);
-    font-size: 14px;
-}
-
-.login-error {
-    background: var(--rojoC);
-    color: var(--rojo);
-    padding: 10px 14px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    display: none;
-}
-.login-error.show {
-    display: block;
-}
-
-.login-btn {
-    width: 100%;
-    padding: 14px;
-    background: var(--verde);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: var(--transition);
-    margin-top: 8px;
-}
-.login-btn:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-.login-btn:active {
-    transform: scale(0.98);
-}
-
-.login-help {
-    margin-top: 16px;
-    text-align: center;
-    font-size: 11px;
-    color: var(--sub);
-}
-
-/* ============================================
-   APP SCREEN
-   ============================================ */
-.app-screen {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    min-height: 100dvh;
-}
-
-/* ============================================
-   HEADER
-   ============================================ */
-.header {
-    background: var(--verde);
-    padding: 8px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.header-icon {
-    font-size: 20px;
-}
-.header-title {
-    color: #fff;
-    font-weight: 800;
-    font-size: 15px;
-    line-height: 1.1;
-}
-.header-subtitle {
-    color: #A5D6A7;
-    font-size: 10px;
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.user-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(255,255,255,0.12);
-    padding: 4px 10px;
-    border-radius: 20px;
-    color: #A5D6A7;
-    font-size: 11px;
-    flex-wrap: wrap;
-}
-.user-badge .rol {
-    padding: 1px 8px;
-    border-radius: 10px;
-    font-size: 9px;
-    font-weight: 700;
-    color: #fff;
-}
-.admin-badge {
-    background: #FFD54F;
-    color: #1F5C2E !important;
-}
-.empleado-badge {
-    background: #90CAF9;
-    color: #0D47A1 !important;
-}
-.sync-status {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    background: var(--verdeM);
-    color: #fff;
-}
-.sync-status.error {
-    background: var(--rojo);
-}
-.ping-status {
-    font-size: 8px;
-    padding: 2px 6px;
-    border-radius: 10px;
-    background: #37474F;
-    color: #90CAF9;
-    opacity: 0.7;
-    white-space: nowrap;
-}
-.ping-status.active {
-    background: #1B5E20;
-    color: #A5D6A7;
-    opacity: 1;
-}
-
-.logout-btn {
-    background: none;
-    border: 1px solid #A5D6A7;
-    color: #A5D6A7;
-    padding: 2px 10px;
-    border-radius: 12px;
-    cursor: pointer;
-    font-size: 10px;
-    transition: var(--transition);
-}
-.logout-btn:hover {
-    background: rgba(255,255,255,0.1);
-}
-
-/* ============================================
-   NAV TABS
-   ============================================ */
-.nav-tabs {
-    display: flex;
-    overflow-x: auto;
-    gap: 2px;
-    padding: 6px 12px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--borde);
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    flex-shrink: 0;
-}
-.nav-tabs::-webkit-scrollbar {
-    display: none;
-}
-
-.tab-btn {
-    flex: 0 0 auto;
-    padding: 6px 14px;
-    border-radius: 20px;
-    border: none;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    background: transparent;
-    color: var(--sub);
-    transition: var(--transition);
-    white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
-}
-.tab-btn:hover {
-    background: var(--grisC);
-}
-.tab-btn.active {
-    background: var(--verde);
-    color: #fff;
-}
-.tab-btn:active {
-    transform: scale(0.95);
-}
-
-/* ============================================
-   KPIS
-   ============================================ */
-.kpis {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-    gap: 8px;
-    padding: 12px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--borde);
-    flex-shrink: 0;
-}
-
-.kpi-card {
-    border-radius: 10px;
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: var(--transition);
-    text-align: center;
-    background: var(--bg);
-}
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
-}
-.kpi-card:active {
-    transform: scale(0.96);
-}
-.kpi-value {
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 1.2;
-}
-.kpi-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: var(--sub);
-    margin-top: 2px;
-}
-
-/* ============================================
-   CONTENT
-   ============================================ */
-.content {
-    flex: 1;
-    padding: 12px 16px 80px;
-    overflow-y: auto;
-}
-.section {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-.section.active {
-    display: block;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================
-   FILTERS
-   ============================================ */
-.filters {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-.search-input,
-.category-select {
-    border: 1.5px solid var(--borde);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 13px;
-    background: var(--surface);
-    outline: none;
-    transition: var(--transition);
-    flex: 1;
-    min-width: 120px;
-}
-.search-input:focus {
-    border-color: var(--verde);
-}
-.category-select {
-    flex: 0 0 auto;
-    cursor: pointer;
-}
-
-/* ============================================
-   TABLES
-   ============================================ */
-.table-container {
-    background: var(--surface);
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-}
-
-.table-header {
-    display: grid;
-    grid-template-columns: 80px 1fr 50px 40px 50px 40px 60px 70px;
-    background: var(--verde);
-    padding: 8px 12px;
-    font-size: 10px;
-    font-weight: 700;
-    color: #A5D6A7;
-    letter-spacing: 0.05em;
-    gap: 4px;
-}
-.table-header span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.table-row {
-    display: grid;
-    grid-template-columns: 80px 1fr 50px 40px 50px 40px 60px 70px;
-    padding: 8px 12px;
-    align-items: center;
-    border-bottom: 1px solid var(--borde);
-    transition: var(--transition);
-    cursor: pointer;
-    gap: 4px;
-    font-size: 12px;
-}
-.table-row:nth-child(even) {
-    background: var(--bg);
-}
-.table-row:hover {
-    background: var(--verdeC);
-}
-.table-row:active {
-    transform: scale(0.99);
-}
-
-.code-cell {
-    font-weight: 700;
-    color: var(--verde);
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.desc-cell {
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.cat-cell {
-    font-size: 10px;
-    color: var(--sub);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.num-cell {
-    text-align: center;
-    font-size: 12px;
-    color: var(--sub);
-}
-.stock-cell {
-    text-align: center;
-    font-size: 14px;
-    font-weight: 800;
-}
-.badge {
-    display: inline-block;
-    border-radius: 4px;
-    padding: 1px 8px;
-    font-size: 9px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-/* ============================================
-   FORMS
-   ============================================ */
-.form-container {
-    max-width: 650px;
-    margin: 0 auto;
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 20px;
-    box-shadow: var(--shadow);
-}
-
-.form-title {
-    margin: 0 0 16px;
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--verde);
-}
-.form-subtitle {
-    font-size: 13px;
-    color: var(--sub);
-    margin-bottom: 20px;
-}
-
-.form-group {
-    margin-bottom: 12px;
-    position: relative;
-}
-.form-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--sub);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    display: block;
-    margin-bottom: 3px;
-}
-.form-input {
-    width: 100%;
-    border: 1.5px solid var(--borde);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 14px;
-    color: var(--texto);
-    background: var(--surface);
-    outline: none;
-    transition: var(--transition);
-    font-family: inherit;
-}
-.form-input:focus {
-    border-color: var(--verde);
-}
-.form-input:disabled,
-.form-input[readonly] {
-    background: var(--grisC);
-    color: var(--sub);
-    cursor: not-allowed;
-}
-textarea.form-input {
-    resize: vertical;
-    min-height: 80px;
-}
-.form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-.form-grid-3 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.type-buttons {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    margin-bottom: 16px;
-}
-.type-btn {
-    padding: 8px 4px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: 700;
-    background: var(--grisC);
-    color: var(--sub);
-    transition: var(--transition);
-}
-.type-btn:active {
-    transform: scale(0.95);
-}
-.type-btn.active-salida {
-    background: var(--rojo);
-    color: #fff;
-}
-.type-btn.active-entrada {
-    background: var(--verdeM);
-    color: #fff;
-}
-.type-btn.active-ajuste {
-    background: var(--gris);
-    color: #fff;
-}
-
-.submit-btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: 10px;
-    border: none;
-    color: #fff;
-    font-size: 15px;
-    font-weight: 800;
-    cursor: pointer;
-    transition: var(--transition);
-}
-.submit-btn:active {
-    transform: scale(0.97);
-}
-.submit-btn:hover {
-    opacity: 0.9;
-}
-
-/* Suggestions */
-.suggestions {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    background: var(--surface);
-    border: 1.5px solid var(--verde);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    overflow: hidden;
-    display: none;
-    margin-top: 2px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-.suggestions.show {
-    display: block;
-}
-.suggestion-item {
-    padding: 10px 14px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--borde);
-    transition: var(--transition);
-    font-size: 13px;
-}
-.suggestion-item:active {
-    background: var(--verdeC);
-}
-.suggestion-item.new-item {
-    background: #FFF8E1;
-    border: 1px dashed var(--amarillo);
-}
-
-/* Item Info */
-.item-info {
-    background: var(--verdeC);
-    border: 1.5px solid rgba(46,125,50,0.3);
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    display: none;
-    gap: 12px;
-    align-items: center;
-}
-.item-info.show {
-    display: flex;
-}
-.item-info-left {
-    flex: 1;
-}
-.item-info-name {
-    font-size: 14px;
-    font-weight: 700;
-}
-.item-info-details {
-    font-size: 11px;
-    color: var(--sub);
-}
-.item-info-right {
-    text-align: right;
-}
-.item-info-stock {
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--verdeM);
-    line-height: 1;
-}
-.item-info-unit {
-    font-size: 10px;
-    color: var(--sub);
-}
-.item-info-remove {
-    background: none;
-    border: none;
-    color: var(--sub);
-    cursor: pointer;
-    font-size: 20px;
-    padding: 0 0 0 12px;
-    line-height: 1;
-}
-
-/* New Item Form */
-.new-item-form {
-    background: #FFF8E1;
-    border: 2px dashed var(--amarillo);
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 12px;
-    display: none;
-}
-.new-item-form.show {
-    display: block;
-}
-.new-item-form-title {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--amarillo);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.toggle-new-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-    font-size: 13px;
-    color: var(--amarillo);
-    cursor: pointer;
-    font-weight: 600;
-}
-
-/* ============================================
-   HISTORY
-   ============================================ */
-.history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.history-card {
-    background: var(--surface);
-    border-radius: 10px;
-    padding: 10px 14px;
-    display: grid;
-    grid-template-columns: 60px 60px 1fr 50px;
-    align-items: center;
-    gap: 6px;
-    box-shadow: var(--shadow);
-    font-size: 12px;
-}
-.history-date {
-    font-size: 10px;
-    color: var(--sub);
-}
-.history-type {
-    font-weight: 800;
-    font-size: 10px;
-}
-.history-desc {
-    font-size: 12px;
-    font-weight: 600;
-}
-.history-qty {
-    font-size: 16px;
-    font-weight: 800;
-    text-align: center;
-}
-
-/* ============================================
-   CATEGORÍAS
-   ============================================ */
-.categoria-item {
-    background: var(--surface);
-    border-radius: 10px;
-    margin-bottom: 6px;
-    overflow: hidden;
-    box-shadow: var(--shadow);
-}
-.categoria-header {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    cursor: pointer;
-    background: var(--surface);
-    border-left: 4px solid var(--verdeM);
-    transition: var(--transition);
-    gap: 10px;
-}
-.categoria-header:active {
-    background: var(--verdeC);
-}
-.categoria-toggle {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--verdeM);
-    min-width: 24px;
-    text-align: center;
-    transition: transform 0.3s;
-}
-.categoria-toggle.open {
-    transform: rotate(45deg);
-}
-.categoria-nombre {
-    font-size: 14px;
-    font-weight: 700;
-    flex: 1;
-}
-.categoria-cantidad {
-    font-size: 10px;
-    color: var(--sub);
-    background: var(--grisC);
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-weight: 600;
-}
-.categoria-items {
-    padding: 0 16px 16px 16px;
-    display: none;
-    background: var(--bg);
-}
-.categoria-items.open {
-    display: block;
-}
-.categoria-subitem {
-    display: grid;
-    grid-template-columns: 70px 1fr 50px 50px;
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--borde);
-    font-size: 12px;
-    align-items: center;
-    background: var(--surface);
-    border-radius: 6px;
-    margin-top: 4px;
-}
-.sub-codigo {
-    font-weight: 700;
-    color: var(--verde);
-    font-size: 10px;
-}
-.sub-stock {
-    text-align: center;
-    font-weight: 800;
-}
-.sub-min {
-    text-align: center;
-    color: var(--sub);
-    font-size: 10px;
-}
-
-/* ============================================
-   PLANILLA DE TRABAJO
-   ============================================ */
-.planilla-filters {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-    align-items: center;
-}
-
-.empleado-planilla-card {
-    background: var(--surface);
-    border-radius: var(--radius);
-    margin-bottom: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--borde);
-}
-
-.empleado-planilla-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    cursor: pointer;
-    background: var(--bg);
-    transition: var(--transition);
-    border-left: 4px solid var(--azul);
-}
-.empleado-planilla-header:hover {
-    background: var(--verdeC);
-}
-.empleado-planilla-header .nombre {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--texto);
-}
-.empleado-planilla-header .badge-count {
-    background: var(--azul);
-    color: #fff;
-    padding: 2px 12px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 700;
-}
-.empleado-planilla-header .toggle-icon {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--azul);
-    transition: transform 0.3s;
-}
-.empleado-planilla-header .toggle-icon.open {
-    transform: rotate(45deg);
-}
-
-.empleado-planilla-body {
-    display: none;
-    padding: 16px 20px;
-    background: var(--surface);
-}
-.empleado-planilla-body.open {
-    display: block;
-}
-
-/* Planillas individuales */
-.planilla-item {
-    display: grid;
-    grid-template-columns: 90px 120px 1fr 80px 100px 120px;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--borde);
-    font-size: 13px;
-    transition: background 0.2s;
-    border-radius: 6px;
-}
-.planilla-item:hover {
-    background: var(--verdeC);
-}
-.planilla-item:last-child {
-    border-bottom: none;
-}
-.planilla-item .fecha {
-    font-size: 11px;
-    color: var(--sub);
-    font-weight: 600;
-}
-.planilla-item .tipo {
-    font-weight: 700;
-    font-size: 12px;
-    padding: 2px 10px;
-    border-radius: 12px;
-    text-align: center;
-}
-.planilla-item .tipo.mecanico { background: #E3F2FD; color: #0D47A1; }
-.planilla-item .tipo.hidraulico { background: #E0F7FA; color: #00695C; }
-.planilla-item .tipo.electrico { background: #FFF3E0; color: #E65100; }
-.planilla-item .tipo.electronico { background: #F3E5F5; color: #6A1B9A; }
-.planilla-item .tipo.neumatico { background: #E8F5E9; color: #1B5E20; }
-.planilla-item .tipo.otro { background: #ECEFF1; color: #37474F; }
-.planilla-item .modulo {
-    font-weight: 600;
-}
-.planilla-item .horas {
-    text-align: center;
-    font-weight: 700;
-    color: var(--verdeM);
-}
-.planilla-item .repuesto {
-    font-size: 11px;
-    color: var(--sub);
-    text-align: center;
-}
-.planilla-item .acciones {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
-}
-.planilla-item .acciones button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
-    padding: 4px 6px;
-    border-radius: 4px;
-    transition: background 0.2s;
-}
-.planilla-item .acciones button:hover {
-    background: var(--grisC);
-}
-
-/* Resumen del día */
-.resumen-dia {
-    background: var(--azulC);
-    border-radius: 8px;
-    padding: 8px 14px;
-    margin-bottom: 12px;
-    font-size: 12px;
-    color: var(--azul);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Planilla vacía */
-.planilla-vacia {
-    text-align: center;
-    padding: 30px 20px;
-    color: var(--sub);
-}
-.planilla-vacia .icono {
-    font-size: 40px;
-    margin-bottom: 8px;
-}
-.planilla-vacia .titulo {
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--texto);
-}
-
-/* ============================================
-   ADMIN
-   ============================================ */
-.admin-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-top: 16px;
-}
-.admin-card {
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 20px 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: var(--transition);
-    border: 1.5px solid var(--borde);
-    box-shadow: var(--shadow);
-}
-.admin-card:active {
-    transform: scale(0.96);
-}
-.admin-card:hover {
-    border-color: var(--verde);
-}
-.admin-card-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
-}
-.admin-card-title {
-    font-size: 13px;
-    font-weight: 700;
-}
-.admin-card-desc {
-    font-size: 10px;
-    color: var(--sub);
-    margin-top: 4px;
-}
-
-/* ============================================
-   TOAST
-   ============================================ */
-.toast {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 200;
-    padding: 12px 24px;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-    display: none;
-    max-width: 90%;
-    text-align: center;
-}
-.toast.show {
-    display: block;
-    animation: toastIn 0.3s ease;
-}
-.toast-success {
-    background: var(--verdeM);
-    color: #fff;
-}
-.toast-error {
-    background: var(--rojo);
-    color: #fff;
-}
-
-@keyframes toastIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-/* ============================================
-   MODALS
-   ============================================ */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 100;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    backdrop-filter: blur(4px);
-}
-.modal-overlay.show {
-    display: flex;
-}
-.modal {
-    background: var(--surface);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 560px;
-    max-height: 90vh;
-    overflow: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    animation: modalIn 0.3s ease;
-}
-
-@keyframes modalIn {
-    from { opacity: 0; transform: scale(0.95) translateY(20px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.modal-header {
-    background: var(--verde);
-    padding: 14px 20px;
-    border-radius: 16px 16px 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.modal-title {
-    color: #fff;
-    font-weight: 800;
-    font-size: 16px;
-}
-.modal-close {
-    background: none;
-    border: none;
-    color: #fff;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-}
-.modal-body {
-    padding: 20px;
-}
-
-/* Drop Zone */
-.drop-zone {
-    border: 2px dashed var(--borde);
-    border-radius: 12px;
-    padding: 24px 16px;
-    text-align: center;
-    cursor: pointer;
-    margin-bottom: 12px;
-    transition: var(--transition);
-    background: var(--bg);
-}
-.drop-zone.loaded {
-    border-color: var(--verdeM);
-    background: var(--verdeC);
-}
-.drop-zone:active {
-    transform: scale(0.98);
-}
-
-/* Buttons */
-.btn-group {
-    display: flex;
-    gap: 8px;
-}
-.btn {
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    border: none;
-    transition: var(--transition);
-}
-.btn:active {
-    transform: scale(0.97);
-}
-.btn-cancel {
-    flex: 1;
-    background: var(--surface);
-    color: var(--gris);
-    border: 1.5px solid var(--borde);
-}
-.btn-primary {
-    flex: 2;
-    background: var(--verde);
-    color: #fff;
-}
-
-/* Preview Table */
-.preview-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
-    margin-bottom: 12px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--borde);
-}
-.preview-table th {
-    background: var(--verde);
-    padding: 6px 8px;
-    color: #A5D6A7;
-    font-weight: 700;
-    text-align: left;
-}
-.preview-table td {
-    padding: 5px 8px;
-    border-bottom: 1px solid var(--borde);
-}
-
-/* Info Box */
-.info-box {
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 12px;
-}
-.info-box.error {
-    background: var(--rojoC);
-    color: var(--rojo);
-}
-.info-box.success {
-    background: var(--azulC);
-    color: var(--azul);
-}
-
-/* Backup */
-.backup-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 12px 0;
-}
-.backup-info {
-    background: #E3F2FD;
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-size: 13px;
-    color: #1565C0;
-    border-left: 4px solid #1565C0;
-    margin-bottom: 12px;
-}
-
-/* ============================================
-   EMPTY STATE
-   ============================================ */
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    background: var(--surface);
-    border-radius: var(--radius);
-}
-.empty-icon {
-    font-size: 40px;
-    margin-bottom: 8px;
-}
-.empty-title {
-    font-size: 16px;
-    font-weight: 700;
-}
-.empty-text {
-    font-size: 13px;
-    color: var(--sub);
-}
-
-/* ============================================
-   RESPONSIVE
-   ============================================ */
-
-/* Tablets y móviles */
-@media (max-width: 768px) {
-    .table-header,
-    .table-row {
-        grid-template-columns: 60px 1fr 40px 35px 40px 35px 45px 55px;
-        font-size: 10px;
-        padding: 6px 8px;
-    }
-    .code-cell { font-size: 9px; }
-    .desc-cell { font-size: 10px; }
-    .stock-cell { font-size: 12px; }
-    .badge { font-size: 8px; padding: 1px 6px; }
-    
-    .history-card {
-        grid-template-columns: 50px 50px 1fr 40px;
-        font-size: 10px;
-        padding: 8px 10px;
-    }
-    .history-qty { font-size: 14px; }
-    
-    .form-grid,
-    .form-grid-3 {
-        grid-template-columns: 1fr;
-        gap: 8px;
-    }
-    .type-buttons {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .kpis {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-        padding: 8px 12px;
-    }
-    .kpi-card {
-        padding: 6px 8px;
-    }
-    .kpi-value { font-size: 16px; }
-    .kpi-label { font-size: 8px; }
-    
-    .header-title { font-size: 13px; }
-    .header-subtitle { font-size: 9px; }
-    .user-badge { font-size: 9px; padding: 2px 8px; }
-    .tab-btn { font-size: 10px; padding: 4px 10px; }
-    
-    .login-container {
-        padding: 28px 20px;
-        margin: 12px;
-    }
-    .login-title { font-size: 20px; }
-    
-    .admin-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-    }
-    .admin-card { padding: 14px 12px; }
-    .admin-card-icon { font-size: 24px; }
-    .admin-card-title { font-size: 11px; }
-    .admin-card-desc { font-size: 9px; }
-    
-    .categoria-subitem {
-        grid-template-columns: 55px 1fr 40px 40px;
-        font-size: 10px;
-    }
-    .sub-codigo { font-size: 9px; }
-    
-    /* Planillas responsive */
-    .planilla-item {
-        grid-template-columns: 1fr 1fr;
-        gap: 4px;
-        font-size: 12px;
-        padding: 8px 10px;
-    }
-    .planilla-item .fecha { grid-column: 1 / -1; }
-    .planilla-item .acciones { grid-column: 1 / -1; justify-content: flex-end; }
-    .empleado-planilla-header {
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-}
-
-/* Móviles pequeños */
-@media (max-width: 400px) {
-    .table-header,
-    .table-row {
-        grid-template-columns: 45px 1fr 30px 30px 30px 30px 35px 45px;
-        font-size: 9px;
-        padding: 4px 6px;
-        gap: 2px;
-    }
-    .code-cell { font-size: 8px; }
-    .desc-cell { font-size: 9px; }
-    .stock-cell { font-size: 10px; }
-    
-    .kpis {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    .kpi-value { font-size: 14px; }
-    
-    .login-container {
-        padding: 20px 16px;
-    }
-    .login-title { font-size: 18px; }
-    .login-icon { font-size: 36px; }
-    
-    .content {
-        padding: 8px 10px 60px;
-    }
-}
-
-/* Landscape en móvil */
-@media (max-width: 768px) and (orientation: landscape) {
-    .header {
-        min-height: 44px;
-        padding: 4px 12px;
-    }
-    .header-title { font-size: 12px; }
-    .header-subtitle { font-size: 8px; }
-    .content { padding-bottom: 40px; }
-}
-
-/* ============================================
-   UTILIDADES
-   ============================================ */
-.text-center { text-align: center; }
-.mt-8 { margin-top: 8px; }
-.mb-8 { margin-bottom: 8px; }
-.gap-8 { gap: 8px; }
-.flex { display: flex; }
-.flex-between { justify-content: space-between; }
-.flex-center { align-items: center; }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Control de Stock · Pañol ECO FACTORY SRL</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js">
+    </script>
+    <style>
+        /* ============================================
+           ESTILOS PARA ÓRDENES DE TRABAJO
+           ============================================ */
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--verde);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .card-actions .btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: none;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all .2s;
+            background: var(--verdeC);
+            color: var(--verde);
+            border: 1.5px solid var(--verde);
+        }
+        .card-actions .btn-primary {
+            background: var(--verde);
+            color: #fff;
+            border-color: var(--verde);
+        }
+        .card-actions .btn-primary:hover {
+            background: var(--verdeM);
+            transform: scale(1.02);
+        }
+        .card-actions .btn-outline {
+            background: transparent;
+            color: var(--verde);
+            border: 1.5px solid var(--verde);
+        }
+        .card-actions .btn-outline:hover {
+            background: var(--verdeC);
+        }
+
+        .kpis-ordenes {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .kpi-card-ot {
+            background: var(--surface);
+            border-radius: 10px;
+            padding: 10px 20px;
+            min-width: 100px;
+            flex: 1;
+            border-left: 4px solid var(--verdeM);
+            box-shadow: var(--shadow);
+        }
+        .kpi-card-ot .kpi-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--verde);
+        }
+        .kpi-card-ot .kpi-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--sub);
+            margin-top: 2px;
+        }
+
+        .table-container-ot {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--borde);
+        }
+        .table-container-ot table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .table-container-ot th {
+            background: var(--verde);
+            color: #A5D6A7;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            white-space: nowrap;
+        }
+        .table-container-ot td {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--borde);
+            vertical-align: middle;
+            font-size: 12px;
+        }
+        .table-container-ot tr:nth-child(even) {
+            background: var(--bg);
+        }
+        .table-container-ot tr:hover {
+            background: var(--verdeC);
+        }
+        .table-container-ot .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 10px;
+            background: var(--verdeC);
+            color: var(--verde);
+        }
+        .table-container-ot .badge-warning {
+            background: #FFF8E1;
+            color: #E65100;
+        }
+        .table-container-ot .badge-info {
+            background: var(--azulC);
+            color: var(--azul);
+        }
+        .table-container-ot .btn-accion {
+            padding: 2px 10px;
+            border-radius: 12px;
+            border: 1.5px solid var(--verde);
+            background: transparent;
+            color: var(--verde);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .table-container-ot .btn-accion:hover {
+            background: var(--verdeC);
+        }
+        .table-container-ot .btn-accion.danger {
+            border-color: var(--rojo);
+            color: var(--rojo);
+        }
+        .table-container-ot .btn-accion.danger:hover {
+            background: var(--rojoC);
+        }
+
+        .modal-ot .modal {
+            max-width: 750px;
+        }
+
+        .form-grid-ot {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+        }
+        .form-grid-3-ot {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px 20px;
+        }
+        .form-group-ot {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .form-group-ot label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--sub);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .form-group-ot .form-control {
+            padding: 8px 12px;
+            border: 1.5px solid var(--borde);
+            border-radius: 8px;
+            font-size: 13px;
+            background: var(--surface);
+            transition: border .2s;
+            outline: none;
+            width: 100%;
+            font-family: inherit;
+        }
+        .form-group-ot .form-control:focus {
+            border-color: var(--verde);
+            box-shadow: 0 0 0 3px rgba(31, 92, 46, 0.1);
+        }
+        .form-group-ot .form-control[readonly] {
+            background: var(--grisC);
+        }
+
+        .submit-area-ot {
+            margin-top: 20px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .btn-submit-ot {
+            padding: 12px 32px;
+            background: var(--verde);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all .2s;
+            flex: 1;
+            min-width: 140px;
+        }
+        .btn-submit-ot:hover {
+            background: var(--verdeM);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(31, 92, 46, 0.25);
+        }
+
+        .drop-zone-ot {
+            border: 2px dashed var(--borde);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 12px;
+            transition: all .2s;
+            background: var(--bg);
+        }
+        .drop-zone-ot.loaded {
+            border-color: var(--verdeM);
+            background: var(--verdeC);
+        }
+        .drop-zone-ot .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .preview-table-wrap {
+            max-height: 300px;
+            overflow: auto;
+            margin: 10px 0;
+            border: 1px solid var(--borde);
+            border-radius: 8px;
+        }
+        .preview-table-wrap table {
+            font-size: 11px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .preview-table-wrap th {
+            background: var(--verde);
+            color: #A5D6A7;
+            padding: 5px 8px;
+            font-size: 9px;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .preview-table-wrap td {
+            padding: 4px 8px;
+            border-bottom: 1px solid var(--borde);
+            font-size: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid-ot,
+            .form-grid-3-ot {
+                grid-template-columns: 1fr;
+            }
+            .card-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .card-actions {
+                justify-content: stretch;
+            }
+            .card-actions .btn {
+                flex: 1;
+                text-align: center;
+            }
+            .kpis-ordenes {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .kpi-card-ot {
+                padding: 8px 12px;
+                min-width: 60px;
+            }
+            .kpi-card-ot .kpi-value {
+                font-size: 16px;
+            }
+            .table-container-ot td,
+            .table-container-ot th {
+                padding: 6px 8px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">Cargando datos</div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- LOGIN SCREEN -->
+    <!-- ========================================= -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-icon">🏭</div>
+                <h1 class="login-title">Control de Stock</h1>
+                <p class="login-subtitle">Pañol · ECO FACTORY SRL</p>
+            </div>
+            <div class="login-error" id="loginError">Usuario o contraseña incorrectos</div>
+            <div class="form-group">
+                <label class="form-label">Usuario</label>
+                <input type="text" class="form-input" id="loginUser" placeholder="admin" value="admin">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Contraseña</label>
+                <input type="password" class="form-input" id="loginPass" placeholder="••••••••" value="admin123">
+            </div>
+            <button class="login-btn" onclick="doLogin()">Ingresar al sistema</button>
+            <div class="login-help">
+                <span>admin / admin123 · empleado1 / empleado123</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- APP SCREEN -->
+    <!-- ========================================= -->
+    <div id="appScreen" class="app-screen" style="display:none;">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <span class="header-icon">🏭</span>
+                <div>
+                    <div class="header-title">Control de Stock</div>
+                    <div class="header-subtitle">Pañol · ECO FACTORY SRL</div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-badge">
+                    <span id="userNameDisplay">👤 usuario</span>
+                    <span class="rol" id="userRolDisplay">admin</span>
+                    <span class="sync-status" id="syncStatus">●</span>
+                    <span class="ping-status" id="pingStatus">⏱ --</span>
+                    <button class="logout-btn" onclick="doLogout()">Salir</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- NAV TABS -->
+        <nav class="nav-tabs" id="navTabs">
+            <button class="tab-btn active" data-tab="stock">📦 Stock</button>
+            <button class="tab-btn" data-tab="editar">✏️ Editar</button>
+            <button class="tab-btn" data-tab="movimiento">📝 Registrar</button>
+            <button class="tab-btn" data-tab="historial">📋 Historial</button>
+            <button class="tab-btn" data-tab="categorias">📂 Categorías</button>
+            <button class="tab-btn" data-tab="planilla">📋 Planilla</button>
+            <button class="tab-btn" data-tab="planillasRecibidas" id="planillasRecibidasBtn" style="display:none;">📊 Planillas Recibidas</button>
+            <button class="tab-btn" data-tab="correctivos" id="correctivosBtn" style="display:none;">🔧 Correctivos</button>
+            <button class="tab-btn" data-tab="ordenes" id="ordenesBtn" style="display:none;">📋 Órdenes</button>
+            <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none;">⚙️ Admin</button>
+        </nav>
+
+        <!-- KPIS -->
+        <section class="kpis" id="kpis">
+            <div class="kpi-card" data-filter="todos" style="border-left:4px solid var(--verdeM); background:var(--verdeC);">
+                <div class="kpi-value" style="color:var(--verdeM);" id="kpiTotal">0</div>
+                <div class="kpi-label">📦 Total</div>
+            </div>
+            <div class="kpi-card" data-filter="sinstock" style="border-left:4px solid #6A1A1A; background:#FFCDD2;">
+                <div class="kpi-value" style="color:#6A1A1A;" id="kpiSinStock">0</div>
+                <div class="kpi-label">⛔ Sin stock</div>
+            </div>
+            <div class="kpi-card" data-filter="criticos" style="border-left:4px solid var(--rojo); background:var(--rojoC);">
+                <div class="kpi-value" style="color:var(--rojo);" id="kpiCriticos">0</div>
+                <div class="kpi-label">🔴 Críticos</div>
+            </div>
+            <div class="kpi-card" data-tab="categorias" style="border-left:4px solid var(--azul); background:var(--azulC);">
+                <div class="kpi-value" style="color:var(--azul);" id="kpiCategorias">0</div>
+                <div class="kpi-label">📂 Categorías</div>
+            </div>
+            <div class="kpi-card" data-tab="historial" style="border-left:4px solid var(--azul); background:var(--azulC);">
+                <div class="kpi-value" style="color:var(--azul);" id="kpiMovs">0</div>
+                <div class="kpi-label">📋 Movimientos</div>
+            </div>
+        </section>
+
+        <!-- CONTENT -->
+        <main class="content">
+
+            <!-- STOCK -->
+            <section class="section active" id="stockSection">
+                <div class="filters">
+                    <input type="text" class="search-input" placeholder="🔍 Buscar..." oninput="filterStock()">
+                    <select class="category-select" onchange="filterStock()">
+                        <option>Todas</option>
+                    </select>
+                </div>
+                <div class="table-container">
+                    <div class="table-header">
+                        <span>CÓDIGO</span><span>DESCRIPCIÓN</span><span>CAT</span>
+                        <span>MÍN</span><span>ACT</span><span>MÁX</span>
+                        <span>UBIC</span><span>ESTADO</span>
+                    </div>
+                    <div id="stockTable"></div>
+                </div>
+            </section>
+
+            <!-- EDITAR -->
+            <section class="section" id="editarSection">
+                <div class="form-container">
+                    <h2 class="form-title">✏️ Editar ítem</h2>
+                    <div class="form-group">
+                        <label class="form-label">Buscar ítem</label>
+                        <input type="text" class="form-input" id="editSearchInput" placeholder="Código o nombre..." oninput="searchItemToEdit()" autocomplete="off">
+                        <div class="suggestions" id="editSuggestions"></div>
+                    </div>
+                    <div id="editFormContainer" style="display:none;">
+                        <div class="item-info" style="margin-bottom:20px;background:#E3F2FD;border-color:rgba(21,101,192,0.3);">
+                            <div class="item-info-left">
+                                <div class="item-info-name" style="color:var(--azul);">Editando: <span id="editItemName"></span></div>
+                                <div class="item-info-details">Stock actual: <span id="editItemStock"></span> <span id="editItemUnit"></span></div>
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label class="form-label">Código</label><input type="text" class="form-input" id="editCodigo"></div>
+                            <div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="editDescripcion"></div>
+                        </div>
+                        <div class="form-grid-3">
+                            <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="editCategoria"></div>
+                            <div class="form-group"><label class="form-label">Unidad</label><select class="form-input" id="editUnidad"><option>Unidad</option><option>Par</option><option>Kg</option><option>Litro</option><option>Bidón</option><option>Metro</option><option>Caja</option><option>Bolsa</option></select></div>
+                            <div class="form-group"><label class="form-label">Stock inicial</label><input type="number" class="form-input" id="editInicial" min="0"></div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label class="form-label">Stock mínimo</label><input type="number" class="form-input" id="editMinimo" min="0"></div>
+                            <div class="form-group"><label class="form-label">Stock máximo</label><input type="number" class="form-input" id="editMaximo" min="0"></div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="editUbicacion"></div>
+                            <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="editPlanta"></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Crítico (SI/NO)</label>
+                            <input type="text" class="form-input" id="editCritico" placeholder="SI o NO" maxlength="2">
+                        </div>
+                        <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="editObs"></div>
+                        <div class="btn-group">
+                            <button class="btn btn-cancel" onclick="cancelEdit()">Cancelar</button>
+                            <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MOVIMIENTO -->
+            <section class="section" id="movimientoSection">
+                <div class="form-container">
+                    <h2 class="form-title">📝 Registrar movimiento</h2>
+                    <div class="type-buttons">
+                        <button class="type-btn active-salida" onclick="setTipo('SALIDA', this)">SALIDA</button>
+                        <button class="type-btn" onclick="setTipo('ENTRADA', this)">ENTRADA</button>
+                        <button class="type-btn" onclick="setTipo('DEVOLUCIÓN', this)">DEVOLUCIÓN</button>
+                        <button class="type-btn" onclick="setTipo('AJUSTE', this)">AJUSTE</button>
+                    </div>
+                    <div class="form-group" id="codigoExistenteGroup">
+                        <label class="form-label">Código o nombre del ítem</label>
+                        <input type="text" class="form-input" id="codigoInput" placeholder="Ej: PAN-010 o 'disco'" oninput="searchItem()" onfocus="searchItem()" autocomplete="off">
+                        <div class="suggestions" id="suggestions"></div>
+                    </div>
+                    <div class="item-info" id="itemInfo">
+                        <div class="item-info-left">
+                            <div class="item-info-name" id="itemInfoDesc"></div>
+                            <div class="item-info-details" id="itemInfoDetails"></div>
+                        </div>
+                        <div class="item-info-right">
+                            <div class="item-info-stock" id="itemInfoStock">0</div>
+                            <div class="item-info-unit" id="itemInfoUnit">unidades</div>
+                        </div>
+                        <button class="item-info-remove" onclick="clearItemSelection()">×</button>
+                    </div>
+                    <div class="toggle-new-item" id="toggleNewItem" style="display:none;" onclick="toggleNewItemForm()">
+                        <span id="toggleNewItemIcon">➕</span>
+                        <span id="toggleNewItemText">Crear nuevo ítem</span>
+                    </div>
+                    <div class="new-item-form" id="newItemForm">
+                        <div class="new-item-form-title">🆕 Nuevo ítem</div>
+                        <div class="form-group"><label class="form-label">Código *</label><input type="text" class="form-input" id="newCodigo" placeholder="PAN-020"></div>
+                        <div class="form-group"><label class="form-label">Descripción *</label><input type="text" class="form-input" id="newDescripcion" placeholder="Nombre del producto"></div>
+                        <div class="form-grid-3">
+                            <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="newCategoria" placeholder="EPP"></div>
+                            <div class="form-group"><label class="form-label">Unidad</label><select class="form-input" id="newUnidad"><option>Unidad</option><option>Par</option><option>Kg</option><option>Litro</option><option>Bidón</option><option>Metro</option><option>Caja</option><option>Bolsa</option></select></div>
+                            <div class="form-group"><label class="form-label">Stock inicial</label><input type="number" class="form-input" id="newInicial" min="0" value="0"></div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label class="form-label">Stock mínimo</label><input type="number" class="form-input" id="newMinimo" min="0" value="1"></div>
+                            <div class="form-group"><label class="form-label">Stock máximo</label><input type="number" class="form-input" id="newMaximo" min="1" value="10"></div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="newUbicacion" placeholder="E1-A4"></div>
+                            <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="newPlanta" placeholder="Planta 1"></div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Crítico (SI/NO)</label>
+                            <input type="text" class="form-input" id="newCritico" placeholder="SI o NO" maxlength="2" value="NO">
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group"><label class="form-label">Cantidad *</label><input type="number" class="form-input" id="cantidadInput" min="1" placeholder="0"></div>
+                        <div class="form-group"><label class="form-label">Responsable</label><input type="text" class="form-input" id="responsableInput" placeholder="Nombre"></div>
+                        <div class="form-group"><label class="form-label">OT / Ref.</label><input type="text" class="form-input" id="otInput" placeholder="OT-2026-xxx"></div>
+                        <div class="form-group"><label class="form-label">Sector</label><input type="text" class="form-input" id="sectorInput" placeholder="Hidráulicos"></div>
+                    </div>
+                    <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="obsInput" placeholder="Opcional"></div>
+                    <button class="submit-btn" id="submitBtn" onclick="registrarMovimiento()">Registrar SALIDA →</button>
+                </div>
+            </section>
+
+            <!-- HISTORIAL -->
+            <section class="section" id="historialSection">
+                <div id="historyList" class="history-list"></div>
+            </section>
+
+            <!-- CATEGORÍAS -->
+            <section class="section" id="categoriasSection">
+                <div id="categoriasList"></div>
+            </section>
+
+            <!-- PLANILLA DE TRABAJO -->
+            <section class="section" id="planillaSection">
+                <div class="form-container">
+                    <h2 class="form-title">📋 Planilla de Trabajo</h2>
+                    <p class="form-subtitle">Registrá los trabajos que realizaste hoy</p>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Fecha</label>
+                        <input type="date" class="form-input" id="planillaFecha" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Trabajo *</label>
+                        <select class="form-input" id="planillaTipo">
+                            <option value="">Seleccioná un tipo...</option>
+                            <option value="Mecánico">🔧 Mecánico</option>
+                            <option value="Hidráulico">💧 Hidráulico</option>
+                            <option value="Eléctrico">⚡ Eléctrico</option>
+                            <option value="Electrónico">📡 Electrónico</option>
+                            <option value="Neumático">💨 Neumático</option>
+                            <option value="Otro">📌 Otro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Módulo Intervenido *</label>
+                        <input type="text" class="form-input" id="planillaModulo" placeholder="Ej: Módulo de Corte, Sistema Hidráulico, Panel Eléctrico...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Descripción de la Tarea *</label>
+                        <textarea class="form-input" id="planillaDescripcion" rows="4" placeholder="Descripción detallada del trabajo realizado..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Técnico</label>
+                        <input type="text" class="form-input" id="planillaTecnico" readonly>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Horas Invertidas *</label>
+                            <input type="number" class="form-input" id="planillaHoras" min="0.5" step="0.5" placeholder="Ej: 2.5">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Repuesto Utilizado (opcional)</label>
+                            <input type="text" class="form-input" id="planillaRepuesto" placeholder="Código y nombre del repuesto">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Observaciones (opcional)</label>
+                        <input type="text" class="form-input" id="planillaObservaciones" placeholder="Comentarios adicionales...">
+                    </div>
+                    
+                    <button class="submit-btn" id="submitPlanillaBtn" onclick="registrarPlanilla()" style="background:var(--azul);">📋 Registrar Trabajo</button>
+                </div>
+            </section>
+
+            <!-- PLANILLAS RECIBIDAS (ADMIN) -->
+            <section class="section" id="planillasRecibidasSection">
+                <div class="form-container" style="max-width:100%;">
+                    <h2 class="form-title">📊 Planillas Recibidas</h2>
+                    <p class="form-subtitle">Visualizá los trabajos registrados por cada empleado</p>
+                    
+                    <div class="filters planilla-filters">
+                        <select class="category-select" id="planillaFiltroEmpleado" onchange="filtrarPlanillasPorEmpleado()">
+                            <option value="">Todos los empleados</option>
+                        </select>
+                        <input type="date" class="form-input" id="planillaFiltroFecha" style="max-width:200px;" onchange="filtrarPlanillasPorFecha()">
+                        <button class="btn btn-primary" onclick="exportarPlanillasExcel()" style="max-width:200px;background:#1565C0;">📥 Exportar Excel</button>
+                    </div>
+                    
+                    <div id="planillasRecibidasList"></div>
+                </div>
+            </section>
+
+            <!-- CORRECTIVOS (ADMIN) -->
+            <section class="section" id="correctivosSection">
+                <div class="form-container" style="max-width:100%;">
+                    <h2 class="form-title">🔧 Registros Correctivos</h2>
+                    <p class="form-subtitle">Visualizá los trabajos correctivos por técnico</p>
+                    
+                    <div class="filters planilla-filters">
+                        <input type="text" class="search-input" id="correctivosSearch" placeholder="🔍 Buscar técnico..." oninput="renderCorrectivosPorTecnico()" style="max-width:300px;">
+                        <button class="btn btn-primary" onclick="importarCorrectivosExcel()" style="background:#E65100;">📂 Importar Excel</button>
+                        <button class="btn btn-primary" onclick="exportarCorrectivosExcel()" style="background:#1565C0;">📥 Exportar Excel</button>
+                        <button class="btn btn-primary" onclick="cargarCorrectivos().then(() => renderCorrectivosPorTecnico())" style="background:var(--verdeM);">🔄 Recargar</button>
+                    </div>
+                    
+                    <div id="correctivosList"></div>
+                </div>
+            </section>
+
+            <!-- ÓRDENES DE TRABAJO (ADMIN) -->
+            <section class="section" id="ordenesSection">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔧 Órdenes de Trabajo</div>
+                        <div class="card-actions">
+                            <button class="btn btn-primary" onclick="abrirFormularioOT()">➕ Nueva OT</button>
+                            <button class="btn btn-outline" onclick="exportarOTXLSX()">📥 Exportar XLSX</button>
+                            <button class="btn btn-outline" onclick="abrirImportadorOT()">📤 Importar XLSX</button>
+                        </div>
+                    </div>
+                    
+                    <!-- KPIs de órdenes -->
+                    <div class="kpis-ordenes">
+                        <div class="kpi-card-ot"><div class="kpi-value" id="totalOT">0</div><div class="kpi-label">📋 Total OT</div></div>
+                        <div class="kpi-card-ot" style="border-left-color:#E65100;"><div class="kpi-value" id="promHorasOT">0</div><div class="kpi-label">⏱️ Prom. horas</div></div>
+                        <div class="kpi-card-ot" style="border-left-color:#1565C0;"><div class="kpi-value" id="totalRepuestosOT">0</div><div class="kpi-label">🔩 Repuestos usados</div></div>
+                    </div>
+                    
+                    <!-- Filtros -->
+                    <div class="filters">
+                        <input type="text" class="search-input" id="searchInputOT" placeholder="🔍 Buscar máquina, técnico, OT..." oninput="renderTablaOT()" style="max-width:300px;">
+                        <select class="category-select" id="filterMaquinaOT" onchange="renderTablaOT()"><option value="">Todas las máquinas</option></select>
+                        <select class="category-select" id="filterTecnicoOT" onchange="renderTablaOT()"><option value="">Todos los técnicos</option></select>
+                        <button class="btn btn-outline" onclick="limpiarFiltrosOT()" style="padding:6px 16px;">✕ Limpiar</button>
+                    </div>
+                    
+                    <!-- Tabla -->
+                    <div class="table-container-ot">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Máquina</th>
+                                    <th>Falla</th>
+                                    <th>Intervención</th>
+                                    <th>Técnico</th>
+                                    <th>Horas</th>
+                                    <th>Repuestos</th>
+                                    <th style="text-align:center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaBodyOT"></tbody>
+                        </table>
+                    </div>
+                    <div id="emptyStateOT" class="empty-state" style="display:none;">
+                        <div class="empty-icon">📭</div>
+                        <div class="empty-title">No hay órdenes de trabajo</div>
+                        <div style="color:var(--sub);">Hacé clic en "Nueva OT" para agregar la primera</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ADMIN -->
+            <section class="section" id="adminSection">
+                <div class="form-container">
+                    <h2 class="form-title">⚙️ Administración</h2>
+                    
+                    <div class="admin-grid">
+                        <div class="admin-card" onclick="openImportModal()">
+                            <div class="admin-card-icon">📂</div>
+                            <div class="admin-card-title">Importar Excel</div>
+                            <div class="admin-card-desc">Cargar stock desde archivo Excel</div>
+                        </div>
+                        <div class="admin-card" onclick="openBackupModal()">
+                            <div class="admin-card-icon">💾</div>
+                            <div class="admin-card-title">Backup</div>
+                            <div class="admin-card-desc">Descargar o restaurar datos</div>
+                        </div>
+                        <div class="admin-card" onclick="descargarPlantilla()">
+                            <div class="admin-card-icon">📊</div>
+                            <div class="admin-card-title">Plantilla Excel</div>
+                            <div class="admin-card-desc">Descargar plantilla para carga</div>
+                        </div>
+                        <div class="admin-card" onclick="exportarDatos()">
+                            <div class="admin-card-icon">📤</div>
+                            <div class="admin-card-title">Exportar todo</div>
+                            <div class="admin-card-desc">Exportar todos los datos a Excel</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- TOAST -->
+    <!-- ========================================= -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ========================================= -->
+    <!-- MODAL IMPORT -->
+    <!-- ========================================= -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">📂 Importar desde Excel</span>
+                <button class="modal-close" onclick="closeImportModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+                    <div style="font-size:32px;margin-bottom:8px;" id="dropIcon">📊</div>
+                    <div style="font-weight:700;" id="dropText">Hacé clic o arrastrá tu archivo Excel</div>
+                    <div style="font-size:12px;color:var(--sub);margin-top:4px;">Formatos: .xlsx · .xls</div>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)">
+                <div class="info-box" id="importInfo" style="display:none;"></div>
+                <div id="previewContainer" style="display:none;"></div>
+                <div class="btn-group" id="importButtons" style="display:none;">
+                    <button class="btn btn-cancel" onclick="closeImportModal()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="confirmImport()">Importar →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- MODAL BACKUP -->
+    <!-- ========================================= -->
+    <div class="modal-overlay" id="backupModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">💾 Backup</span>
+                <button class="modal-close" onclick="closeBackupModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="backup-info">
+                    📌 <strong>Respaldar y restaurar datos</strong><br>
+                    1. Descargá el backup desde esta PC<br>
+                    2. Pasá el archivo a otra PC<br>
+                    3. Restaurá desde la otra PC
+                </div>
+                <div class="backup-section">
+                    <button class="btn btn-primary admin-only" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button>
+                    <div style="text-align:center;color:var(--sub);font-size:13px;margin:8px 0;">— o —</div>
+                    <button class="btn btn-primary admin-only" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button>
+                    <input type="file" id="restoreFileInput" accept=".xlsx" style="display:none;" onchange="restoreBackup(event)">
+                </div>
+                <div id="restoreInfo" style="display:none;margin-top:16px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- MODAL ÓRDENES DE TRABAJO -->
+    <!-- ========================================= -->
+    <div class="modal-overlay" id="modalOT">
+        <div class="modal modal-ot">
+            <div class="modal-header">
+                <span class="modal-title" id="modalTitleOT">➕ Nueva Orden de Trabajo</span>
+                <button class="modal-close" onclick="cerrarModalOT()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="formOT" onsubmit="guardarOT(event)">
+                    <div class="form-grid-ot">
+                        <div class="form-group-ot">
+                            <label>ID</label>
+                            <input type="text" class="form-control" id="otId" placeholder="Se genera automático" readonly style="background:var(--grisC);">
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Fecha</label>
+                            <input type="date" class="form-control" id="otFecha">
+                        </div>
+                    </div>
+                    <div class="form-grid-ot" style="margin-top:8px;">
+                        <div class="form-group-ot">
+                            <label>Máquina</label>
+                            <select class="form-control" id="otMaquina">
+                                <option value="">Seleccionar máquina</option>
+                            </select>
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Turno</label>
+                            <select class="form-control" id="otTurno">
+                                <option value="">Seleccionar</option>
+                                <option>Mañana</option>
+                                <option>Tarde</option>
+                                <option>Noche</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-grid-ot" style="margin-top:8px;">
+                        <div class="form-group-ot">
+                            <label>Falla</label>
+                            <input type="text" class="form-control" id="otFalla" placeholder="Ej: Vibración excesiva">
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Tipo mantenimiento</label>
+                            <select class="form-control" id="otTipoIntervencion">
+                                <option value="">Seleccionar</option>
+                                <option>Preventivo</option>
+                                <option>Correctivo</option>
+                                <option>Correctivo Programado</option>
+                                <option>Predictivo</option>
+                                <option>Mantenimiento general</option>
+                                <option>Edilicio</option>
+                                <option>Taller</option>
+                                <option>Mecanico</option>
+                                <option>Electrico</option>
+                                <option>Hidraulico</option>
+                                <option>Neumatico</option>
+                                <option>Electronico</option>
+                                <option>Otro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group-ot" style="margin-top:8px;">
+                        <label>Módulo intervenido</label>
+                        <select class="form-control" id="otModulo">
+                            <option value="">Seleccionar módulo</option>
+                        </select>
+                    </div>
+                    <div class="form-grid-3-ot" style="margin-top:8px;">
+                        <div class="form-group-ot">
+                            <label>Técnico</label>
+                            <select class="form-control" id="otTecnico">
+                                <option value="">Seleccionar técnico</option>
+                            </select>
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Horas</label>
+                            <input type="number" step="0.5" min="0" class="form-control" id="otHoras" placeholder="Ej: 2.5">
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Repuestos</label>
+                            <input type="text" class="form-control" id="otRepuestos" placeholder="Ej: Rodamiento 6205">
+                        </div>
+                    </div>
+                    <div class="form-grid-ot" style="margin-top:8px;">
+                        <div class="form-group-ot">
+                            <label>Solución</label>
+                            <input type="text" class="form-control" id="otSolucion" placeholder="Ej: Ajuste de tuercas">
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Operativa</label>
+                            <select class="form-control" id="otOperativa">
+                                <option value="SI">SI</option>
+                                <option value="NO">NO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-grid-ot" style="margin-top:8px;">
+                        <div class="form-group-ot">
+                            <label>Tipo de Orden</label>
+                            <select class="form-control" id="otTipoOrden">
+                                <option value="">Seleccionar</option>
+                                <option>Interna</option>
+                                <option>Externa</option>
+                                <option>Emergencia</option>
+                                <option>Correctivo</option>
+                                <option>Correctivo Programado</option>
+                                <option>Taller</option>
+                                <option>Edilicio</option>
+                                <option>Preventivo</option>
+                            </select>
+                        </div>
+                        <div class="form-group-ot">
+                            <label>Comentarios</label>
+                            <input type="text" class="form-control" id="otComentarios" placeholder="Observaciones">
+                        </div>
+                    </div>
+                    <div class="submit-area-ot">
+                        <button type="submit" class="btn-submit-ot" id="submitBtnOT">✅ Guardar OT</button>
+                        <button type="button" class="btn btn-outline" onclick="cerrarModalOT()" style="padding:12px 24px;">Cancelar</button>
+                    </div>
+                    <input type="hidden" id="editIndexOT" value="-1">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- MODAL IMPORTAR ÓRDENES -->
+    <!-- ========================================= -->
+    <div class="modal-overlay" id="importModalOT">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">📤 Importar Órdenes desde XLSX</span>
+                <button class="modal-close" onclick="cerrarImportadorOT()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="drop-zone-ot" id="dropZoneOT" onclick="document.getElementById('fileInputOT').click()" ondragover="event.preventDefault()" ondrop="handleDropOT(event)">
+                    <div class="icon" id="dropIconOT">📊</div>
+                    <div style="font-weight:700;" id="dropTextOT">Hacé clic o arrastrá tu archivo Excel</div>
+                    <div style="font-size:12px;color:var(--sub);margin-top:4px;">.xlsx con hoja "Datos" - Todos los campos son opcionales</div>
+                </div>
+                <input type="file" id="fileInputOT" accept=".xlsx" style="display:none;" onchange="handleFileSelectOT(event)">
+                <div id="importInfoOT" style="display:none;margin:12px 0;"></div>
+                <div id="previewContainerOT" style="display:none;"></div>
+                <div class="submit-area-ot" id="importButtonsOT" style="display:none;">
+                    <button class="btn-submit-ot" onclick="confirmarImportacionOT()" style="flex:1;">✅ Importar todos los datos (Reemplaza todo)</button>
+                    <button class="btn btn-outline" onclick="cerrarImportadorOT()" style="padding:12px 24px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- SCRIPTS -->
+    <!-- ========================================= -->
+    <script src="app.js"></script>
+</body>
+</html>
