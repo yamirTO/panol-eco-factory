@@ -2071,3 +2071,504 @@ console.log('📋 Sistema de Planillas de Trabajo con tiempo real cargado');
 console.log('🔄 Polling activo cada 5 segundos para planillas');
 console.log('🔧 Sistema de Registros Correctivos cargado');
 console.log('💡 Para importar Excel, asegúrate que la columna se llame "Stock Inicial"');
+
+
+// ============================================================
+//  ÓRDENES DE TRABAJO
+// ============================================================
+
+let ordenes = JSON.parse(localStorage.getItem('ot_ordenes_v2')) || [];
+let maquinasList = JSON.parse(localStorage.getItem('ot_maquinas')) || ['Torno CNC-12', 'Fresadora', 'Prensa hidráulica', 'Compresor', 'Cinta transportadora'];
+let tecnicosList = JSON.parse(localStorage.getItem('ot_tecnicos')) || ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez'];
+let modulosList = JSON.parse(localStorage.getItem('ot_modulos')) || ['Cabezal', 'Panel de control', 'Motor', 'Bomba hidráulica', 'Sistema eléctrico'];
+
+function guardarOTLocal() {
+    localStorage.setItem('ot_ordenes_v2', JSON.stringify(ordenes));
+    localStorage.setItem('ot_maquinas', JSON.stringify(maquinasList));
+    localStorage.setItem('ot_tecnicos', JSON.stringify(tecnicosList));
+    localStorage.setItem('ot_modulos', JSON.stringify(modulosList));
+}
+
+function renderKPIsOT() {
+    document.getElementById('totalOT').textContent = ordenes.length;
+    const horas = ordenes.map(o => parseFloat(o.horas) || 0);
+    const sumHoras = horas.reduce((a, b) => a + b, 0);
+    const prom = ordenes.length ? (sumHoras / ordenes.length) : 0;
+    document.getElementById('promHorasOT').textContent = prom.toFixed(1);
+    const repuestos = ordenes.filter(o => o.repuestos && o.repuestos.trim()).length;
+    document.getElementById('totalRepuestosOT').textContent = repuestos;
+}
+
+function renderTablaOT() {
+    const search = document.getElementById('searchInputOT').value.toLowerCase().trim();
+    const filtroMaq = document.getElementById('filterMaquinaOT').value;
+    const filtroTec = document.getElementById('filterTecnicoOT').value;
+    
+    let filtrados = ordenes.filter(o => {
+        const matchSearch = !search || 
+            (o.id || '').toLowerCase().includes(search) ||
+            (o.maquina || '').toLowerCase().includes(search) ||
+            (o.tecnico || '').toLowerCase().includes(search) ||
+            (o.falla || '').toLowerCase().includes(search);
+        const matchMaq = !filtroMaq || o.maquina === filtroMaq;
+        const matchTec = !filtroTec || o.tecnico === filtroTec;
+        return matchSearch && matchMaq && matchTec;
+    });
+    
+    const maquinas = [...new Set(ordenes.map(o => o.maquina).filter(Boolean))].sort();
+    const tecnicos = [...new Set(ordenes.map(o => o.tecnico).filter(Boolean))].sort();
+    const selMaq = document.getElementById('filterMaquinaOT');
+    const selTec = document.getElementById('filterTecnicoOT');
+    const curMaq = selMaq.value;
+    const curTec = selTec.value;
+    selMaq.innerHTML = '<option value="">Todas las máquinas</option>' + maquinas.map(m => `<option value="${m}">${m}</option>`).join('');
+    selTec.innerHTML = '<option value="">Todos los técnicos</option>' + tecnicos.map(t => `<option value="${t}">${t}</option>`).join('');
+    selMaq.value = curMaq;
+    selTec.value = curTec;
+    
+    const tbody = document.getElementById('tablaBodyOT');
+    const empty = document.getElementById('emptyStateOT');
+    
+    if (filtrados.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        renderKPIsOT();
+        return;
+    }
+    empty.style.display = 'none';
+    
+    tbody.innerHTML = filtrados.map((o, idx) => {
+        const realIdx = ordenes.indexOf(o);
+        const tipoColor = o.tipo === 'Preventivo' ? 'badge-info' : (o.tipo === 'Correctivo' || o.tipo === 'Correctivo Programado' ? 'badge-warning' : 'badge-ot');
+        let fechaStr = o.fecha || '';
+        if (fechaStr && fechaStr.includes('-')) {
+            const partes = fechaStr.split('-');
+            if (partes.length === 3) {
+                fechaStr = partes[1] + '/' + partes[2] + '/' + partes[0].slice(-2);
+            }
+        }
+        return `<tr>
+            <td><strong style="color:var(--verde);">${o.id || '—'}</strong></td>
+            <td>${fechaStr}</td>
+            <td><span class="badge-ot">${o.maquina || '—'}</span></td>
+            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.falla || ''}">${o.falla || '—'}</td>
+            <td><span class="${tipoColor}">${o.tipo || '—'}</span></td>
+            <td><strong>${o.tecnico || '—'}</strong></td>
+            <td style="font-weight:700;color:var(--verde);">${o.horas || 0}h</td>
+            <td>${o.repuestos || '—'}</td>
+            <td style="text-align:center;">
+                <button class="btn-accion" onclick="editarOT(${realIdx})">✏️</button>
+                <button class="btn-accion danger" onclick="eliminarOT(${realIdx})">🗑️</button>
+            </td>
+        </tr>`;
+    }).join('');
+    renderKPIsOT();
+}
+
+function cargarSelectoresOT() {
+    const selMaq = document.getElementById('otMaquina');
+    const selTec = document.getElementById('otTecnico');
+    const selMod = document.getElementById('otModulo');
+    const currentMaq = selMaq.value;
+    const currentTec = selTec.value;
+    const currentMod = selMod.value;
+    selMaq.innerHTML = '<option value="">Seleccionar máquina</option>' + maquinasList.map(m => `<option value="${m}">${m}</option>`).join('');
+    selTec.innerHTML = '<option value="">Seleccionar técnico</option>' + tecnicosList.map(t => `<option value="${t}">${t}</option>`).join('');
+    selMod.innerHTML = '<option value="">Seleccionar módulo</option>' + modulosList.map(m => `<option value="${m}">${m}</option>`).join('');
+    selMaq.value = currentMaq;
+    selTec.value = currentTec;
+    selMod.value = currentMod;
+}
+
+function getNextIdOT() {
+    if (ordenes.length === 0) return 1;
+    const numeros = ordenes.map(o => parseInt(o.id) || 0);
+    const maxNum = Math.max(...numeros, 0);
+    return maxNum + 1;
+}
+
+function abrirFormularioOT(editIdx = -1) {
+    cargarSelectoresOT();
+    const modal = document.getElementById('modalOT');
+    const form = document.getElementById('formOT');
+    form.reset();
+    document.getElementById('editIndexOT').value = -1;
+    document.getElementById('modalTitleOT').textContent = '➕ Nueva Orden de Trabajo';
+    document.getElementById('submitBtnOT').textContent = '✅ Guardar OT';
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('otFecha').value = hoy;
+    document.getElementById('otId').value = getNextIdOT();
+    document.getElementById('otOperativa').value = 'SI';
+    
+    if (editIdx >= 0 && editIdx < ordenes.length) {
+        const o = ordenes[editIdx];
+        document.getElementById('otId').value = o.id || '';
+        document.getElementById('otFecha').value = o.fecha || hoy;
+        document.getElementById('otMaquina').value = o.maquina || '';
+        document.getElementById('otTurno').value = o.turno || '';
+        document.getElementById('otFalla').value = o.falla || '';
+        document.getElementById('otTipoIntervencion').value = o.tipo || '';
+        document.getElementById('otModulo').value = o.modulo || '';
+        document.getElementById('otTecnico').value = o.tecnico || '';
+        document.getElementById('otHoras').value = o.horas || '';
+        document.getElementById('otRepuestos').value = o.repuestos || '';
+        document.getElementById('otSolucion').value = o.solucion || '';
+        document.getElementById('otOperativa').value = o.operativa || 'SI';
+        document.getElementById('otTipoOrden').value = o.tipoOrden || '';
+        document.getElementById('otComentarios').value = o.comentarios || '';
+        document.getElementById('editIndexOT').value = editIdx;
+        document.getElementById('modalTitleOT').textContent = '✏️ Editar OT';
+        document.getElementById('submitBtnOT').textContent = '💾 Actualizar OT';
+    }
+    modal.classList.add('show');
+}
+
+function cerrarModalOT() {
+    document.getElementById('modalOT').classList.remove('show');
+}
+
+function guardarOT(e) {
+    e.preventDefault();
+    const idx = parseInt(document.getElementById('editIndexOT').value);
+    const id = document.getElementById('otId').value.trim();
+    const fecha = document.getElementById('otFecha').value;
+    const maquina = document.getElementById('otMaquina').value;
+    const turno = document.getElementById('otTurno').value;
+    const falla = document.getElementById('otFalla').value.trim();
+    const tipo = document.getElementById('otTipoIntervencion').value;
+    const modulo = document.getElementById('otModulo').value;
+    const tecnico = document.getElementById('otTecnico').value;
+    const horas = parseFloat(document.getElementById('otHoras').value) || 0;
+    const repuestos = document.getElementById('otRepuestos').value.trim();
+    const solucion = document.getElementById('otSolucion').value.trim();
+    const operativa = document.getElementById('otOperativa').value;
+    const tipoOrden = document.getElementById('otTipoOrden').value;
+    const comentarios = document.getElementById('otComentarios').value.trim();
+    
+    if (!id) { showToast('El ID es obligatorio', false); return; }
+    const duplicado = ordenes.find((o, i) => o.id === id && i !== idx);
+    if (duplicado) { showToast('Ya existe una OT con ese ID', false); return; }
+    
+    const nuevaOT = { id, fecha, maquina, turno, falla, tipo, modulo, tecnico, horas, repuestos: repuestos || '', solucion, operativa, tipoOrden, comentarios };
+    if (idx >= 0 && idx < ordenes.length) {
+        ordenes[idx] = nuevaOT;
+        showToast('✅ OT actualizada');
+    } else {
+        ordenes.push(nuevaOT);
+        showToast('✅ OT creada');
+    }
+    guardarOTLocal();
+    cerrarModalOT();
+    renderTablaOT();
+}
+
+function editarOT(idx) {
+    abrirFormularioOT(idx);
+}
+
+function eliminarOT(idx) {
+    if (confirm('¿Eliminar la OT "' + (ordenes[idx].id || '') + '"?')) {
+        ordenes.splice(idx, 1);
+        guardarOTLocal();
+        renderTablaOT();
+        showToast('🗑️ OT eliminada');
+    }
+}
+
+function limpiarFiltrosOT() {
+    document.getElementById('searchInputOT').value = '';
+    document.getElementById('filterMaquinaOT').value = '';
+    document.getElementById('filterTecnicoOT').value = '';
+    renderTablaOT();
+}
+
+// ==================== FUNCIONES DE FECHA ====================
+
+function excelSerialToDateOT(serial) {
+    if (!serial) return '';
+    if (typeof serial === 'number' && serial > 0 && serial < 50000) {
+        const fecha = new Date((serial - 1) * 24 * 60 * 60 * 1000 + new Date(1899, 11, 30).getTime());
+        const año = fecha.getFullYear();
+        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dia = String(fecha.getDate()).padStart(2, '0');
+        return año + '-' + mes + '-' + dia;
+    }
+    return String(serial);
+}
+
+function fechaToMMDDAAOT(fechaStr) {
+    if (!fechaStr) return '';
+    if (fechaStr.includes('-')) {
+        const partes = fechaStr.split('-');
+        if (partes.length === 3) {
+            const año = partes[0].slice(-2);
+            return partes[1] + '/' + partes[2] + '/' + año;
+        }
+    }
+    return fechaStr;
+}
+
+// ==================== EXPORTAR ====================
+
+function exportarOTXLSX() {
+    if (ordenes.length === 0) { showToast('No hay datos para exportar', false); return; }
+    
+    const datos = ordenes.map(o => ({
+        'ID_Tarea': o.id || '',
+        'Fecha': o.fecha || '',
+        'Tecnico': o.tecnico || '',
+        'Maquina': o.maquina || '',
+        'Falla': o.falla || '',
+        'Turno': o.turno || '',
+        'Tipo de intervencion': o.tipo || '',
+        'Modulo Intervenido': o.modulo || '',
+        'Solucion': o.solucion || '',
+        'Operativa': o.operativa || '',
+        'Comentarios': o.comentarios || '',
+        'Tipo de Orden': o.tipoOrden || '',
+        'Tiempo de trabajo': o.horas || 0
+    }));
+    
+    const wb = XLSX.utils.book_new();
+    const wsDatos = XLSX.utils.json_to_sheet(datos);
+    wsDatos['!cols'] = Object.keys(datos[0]).map(() => ({ wch: 18 }));
+    XLSX.utils.book_append_sheet(wb, wsDatos, 'Datos');
+    
+    const wsMaq = XLSX.utils.aoa_to_sheet([['Máquinas'], ...maquinasList.map(m => [m])]);
+    XLSX.utils.book_append_sheet(wb, wsMaq, 'Maquinas');
+    const wsTec = XLSX.utils.aoa_to_sheet([['Técnicos'], ...tecnicosList.map(t => [t])]);
+    XLSX.utils.book_append_sheet(wb, wsTec, 'Tecnicos');
+    const wsMod = XLSX.utils.aoa_to_sheet([['Módulos'], ...modulosList.map(m => [m])]);
+    XLSX.utils.book_append_sheet(wb, wsMod, 'Modulo intervenido');
+    
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    
+    if (window.showSaveFilePicker) {
+        const opts = { suggestedName: 'ordenes_trabajo.xlsx', types: [{ description: 'Archivo Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] };
+        window.showSaveFilePicker(opts).then(handle => {
+            handle.createWritable().then(writable => { writable.write(blob); writable.close(); showToast('✅ Archivo guardado'); });
+        }).catch(err => { if (err.name !== 'AbortError') { showToast('❌ Error: ' + err.message, false); } });
+    } else {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'ordenes_trabajo.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
+        showToast('📥 XLSX exportado');
+    }
+}
+
+// ==================== IMPORTAR ====================
+
+let importDataOT = null;
+
+function abrirImportadorOT() {
+    document.getElementById('importModalOT').classList.add('show');
+    document.getElementById('dropZoneOT').classList.remove('loaded');
+    document.getElementById('dropIconOT').textContent = '📊';
+    document.getElementById('dropTextOT').textContent = 'Hacé clic o arrastrá tu archivo Excel';
+    document.getElementById('importInfoOT').style.display = 'none';
+    document.getElementById('previewContainerOT').style.display = 'none';
+    document.getElementById('importButtonsOT').style.display = 'none';
+    importDataOT = null;
+}
+
+function cerrarImportadorOT() {
+    document.getElementById('importModalOT').classList.remove('show');
+}
+
+function handleDropOT(e) {
+    e.preventDefault();
+    if (e.dataTransfer.files[0]) processFileOT(e.dataTransfer.files[0]);
+}
+
+function handleFileSelectOT(e) {
+    if (e.target.files[0]) processFileOT(e.target.files[0]);
+}
+
+function normalizarTextoOT(t) {
+    return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function processFileOT(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            
+            if (wb.SheetNames.includes('Maquinas')) {
+                const wsMaq = wb.Sheets['Maquinas'];
+                const raw = XLSX.utils.sheet_to_json(wsMaq, { header: 1, defval: '' });
+                const newMaq = [];
+                for (let row of raw) {
+                    if (row.length > 0) {
+                        const val = String(row[0] || '').trim();
+                        if (val) newMaq.push(val);
+                    }
+                }
+                if (newMaq.length) maquinasList = newMaq;
+            }
+            if (wb.SheetNames.includes('Tecnicos')) {
+                const wsTec = wb.Sheets['Tecnicos'];
+                const raw = XLSX.utils.sheet_to_json(wsTec, { header: 1, defval: '' });
+                const newTec = [];
+                for (let row of raw) {
+                    if (row.length > 0) {
+                        const val = String(row[0] || '').trim();
+                        if (val) newTec.push(val);
+                    }
+                }
+                if (newTec.length) tecnicosList = newTec;
+            }
+            if (wb.SheetNames.includes('Modulo intervenido')) {
+                const wsMod = wb.Sheets['Modulo intervenido'];
+                const raw = XLSX.utils.sheet_to_json(wsMod, { header: 1, defval: '' });
+                const newMod = [];
+                for (let row of raw) {
+                    if (row.length > 0) {
+                        const val = String(row[0] || '').trim();
+                        if (val) newMod.push(val);
+                    }
+                }
+                if (newMod.length) modulosList = newMod;
+            }
+            
+            let wsDatos = null;
+            let nombreHoja = 'Datos';
+            for (let sheetName of wb.SheetNames) {
+                if (sheetName.toLowerCase().includes('datos') || sheetName.toLowerCase().includes('data')) {
+                    wsDatos = wb.Sheets[sheetName];
+                    nombreHoja = sheetName;
+                    break;
+                }
+            }
+            if (!wsDatos && wb.SheetNames.length > 0) {
+                wsDatos = wb.Sheets[wb.SheetNames[0]];
+                nombreHoja = wb.SheetNames[0];
+            }
+            if (!wsDatos) { showToast('No se encontró ninguna hoja con datos', false); return; }
+            
+            const allRows = XLSX.utils.sheet_to_json(wsDatos, { header: 1, defval: '' });
+            if (allRows.length < 2) { showToast('La hoja "' + nombreHoja + '" está vacía', false); return; }
+            
+            const headers = allRows[0].map(h => String(h || '').trim());
+            
+            const columnasExactas = {
+                'ID_Tarea': 'ID_Tarea',
+                'Fecha': 'Fecha',
+                'Tecnico': 'Tecnico',
+                'Maquina': 'Maquina',
+                'Falla': 'Falla',
+                'Turno': 'Turno',
+                'Tipo de intervencion': 'Tipo de intervencion',
+                'Modulo Intervenido': 'Modulo Intervenido',
+                'Solucion': 'Solucion',
+                'Operativa': 'Operativa',
+                'Comentarios': 'Comentarios',
+                'Tipo de Orden': 'Tipo de Orden',
+                'Tiempo de trabajo': 'Tiempo de trabajo'
+            };
+            const idxMap = {};
+            Object.keys(columnasExactas).forEach(key => {
+                const idx = headers.indexOf(columnasExactas[key]);
+                if (idx !== -1) idxMap[key] = idx;
+            });
+            
+            const columnasParciales = {
+                'ID_Tarea': ['id_tarea', 'idtarea', 'id'],
+                'Fecha': ['fecha', 'date'],
+                'Tecnico': ['tecnico', 'técnico', 'responsable'],
+                'Maquina': ['maquina', 'máquina', 'equipo'],
+                'Falla': ['falla', 'problema'],
+                'Turno': ['turno'],
+                'Tipo de intervencion': ['tipo de intervencion', 'tipo', 'intervencion', 'mantenimiento'],
+                'Modulo Intervenido': ['modulo intervenido', 'modulo', 'módulo'],
+                'Solucion': ['solucion', 'solución'],
+                'Operativa': ['operativa'],
+                'Comentarios': ['comentarios', 'comentario', 'obs'],
+                'Tipo de Orden': ['tipo de orden', 'tipo orden', 'orden'],
+                'Tiempo de trabajo': ['tiempo de trabajo', 'tiempo', 'horas', 'duracion']
+            };
+            Object.keys(columnasParciales).forEach(key => {
+                if (idxMap[key] !== undefined) return;
+                const posibles = columnasParciales[key];
+                for (let i = 0; i < headers.length; i++) {
+                    const hNorm = normalizarTextoOT(headers[i]);
+                    for (let p of posibles) {
+                        const pNorm = normalizarTextoOT(p);
+                        if (hNorm === pNorm || hNorm.includes(pNorm) || pNorm.includes(hNorm)) {
+                            idxMap[key] = i;
+                            break;
+                        }
+                    }
+                    if (idxMap[key] !== undefined) break;
+                }
+            });
+            
+            importDataOT = [];
+            let filasVacias = 0;
+            
+            for (let i = 1; i < allRows.length; i++) {
+                const row = allRows[i];
+                const esVacia = row.every(cell => cell === '' || cell === null || cell === undefined);
+                if (esVacia) { filasVacias++; continue; }
+                
+                const registro = {};
+                let tieneDatos = false;
+                
+                Object.keys(idxMap).forEach(key => {
+                    const idx = idxMap[key];
+                    if (idx !== undefined) {
+                        let valor = String(row[idx] || '').trim();
+                        if (valor) { tieneDatos = true; }
+                        if (key === 'Fecha') {
+                            if (valor) {
+                                const num = parseFloat(valor);
+                                if (!isNaN(num) && num > 0 && num < 50000) {
+                                    valor = excelSerialToDateOT(num);
+                                } else if (valor.includes('/')) {
+                                    const partes = valor.split('/');
+                                    if (partes.length === 3) {
+                                        let mes = parseInt(partes[0]);
+                                        let dia = parseInt(partes[1]);
+                                        let año = parseInt(partes[2]);
+                                        if (año < 100) año = 2000 + año;
+                                        if (año >= 2000 && año <= 2100 && mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
+                                            valor = año + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (key === 'Tiempo de trabajo') {
+                            valor = parseFloat(valor.replace(',', '.')) || 0;
+                        } else if (key === 'Operativa') {
+                            const lowerVal = valor.toLowerCase();
+                            if (lowerVal === 'true' || lowerVal === 'si') { valor = 'SI'; } 
+                            else if (lowerVal === 'false' || lowerVal === 'no') { valor = 'NO'; } 
+                            else { valor = valor.toUpperCase(); }
+                        }
+                        registro[key] = valor;
+                    }
+                });
+                
+                if (!tieneDatos) { filasVacias++; continue; }
+                importDataOT.push(registro);
+            }
+            
+            if (importDataOT.length === 0) {
+                showToast('❌ No se encontraron datos válidos', false);
+                return;
+            }
+            
+            document.getElementById('dropZoneOT').classList.add('loaded');
+            document.getElementById('dropIconOT').textContent = '✅';
+            document.getElementById('dropTextOT').textContent = file.name + ' (' + importDataOT.length + ' registros)';
+            
+            const preview = document.getElementById('previewContainerOT');
+            preview.style.display = 'block';
+            const mostrar = importDataOT.length > 100 ? importDataOT.slice(0, 100) : importDataOT;
+            
+            preview.innerHTML = '<div style="font-size:12px;font-weight:700
