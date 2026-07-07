@@ -44,7 +44,7 @@ body {
     background: var(--bg);
     color: var(--texto);
     min-height: 100vh;
-    min-height: 100dvh; /* Para pantalla completa en móvil */
+    min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
 }
 
@@ -551,6 +551,11 @@ body {
     font-weight: 800;
     color: var(--verde);
 }
+.form-subtitle {
+    font-size: 13px;
+    color: var(--sub);
+    margin-bottom: 20px;
+}
 
 .form-group {
     margin-bottom: 12px;
@@ -579,6 +584,16 @@ body {
 }
 .form-input:focus {
     border-color: var(--verde);
+}
+.form-input:disabled,
+.form-input[readonly] {
+    background: var(--grisC);
+    color: var(--sub);
+    cursor: not-allowed;
+}
+textarea.form-input {
+    resize: vertical;
+    min-height: 80px;
 }
 .form-grid {
     display: grid;
@@ -879,6 +894,167 @@ body {
     text-align: center;
     color: var(--sub);
     font-size: 10px;
+}
+
+/* ============================================
+   PLANILLA DE TRABAJO
+   ============================================ */
+.planilla-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.empleado-planilla-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--borde);
+}
+
+.empleado-planilla-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    cursor: pointer;
+    background: var(--bg);
+    transition: var(--transition);
+    border-left: 4px solid var(--azul);
+}
+.empleado-planilla-header:hover {
+    background: var(--verdeC);
+}
+.empleado-planilla-header .nombre {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--texto);
+}
+.empleado-planilla-header .badge-count {
+    background: var(--azul);
+    color: #fff;
+    padding: 2px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.empleado-planilla-header .toggle-icon {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--azul);
+    transition: transform 0.3s;
+}
+.empleado-planilla-header .toggle-icon.open {
+    transform: rotate(45deg);
+}
+
+.empleado-planilla-body {
+    display: none;
+    padding: 16px 20px;
+    background: var(--surface);
+}
+.empleado-planilla-body.open {
+    display: block;
+}
+
+/* Planillas individuales */
+.planilla-item {
+    display: grid;
+    grid-template-columns: 90px 120px 1fr 80px 100px 120px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--borde);
+    font-size: 13px;
+    transition: background 0.2s;
+    border-radius: 6px;
+}
+.planilla-item:hover {
+    background: var(--verdeC);
+}
+.planilla-item:last-child {
+    border-bottom: none;
+}
+.planilla-item .fecha {
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 600;
+}
+.planilla-item .tipo {
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    text-align: center;
+}
+.planilla-item .tipo.mecanico { background: #E3F2FD; color: #0D47A1; }
+.planilla-item .tipo.hidraulico { background: #E0F7FA; color: #00695C; }
+.planilla-item .tipo.electrico { background: #FFF3E0; color: #E65100; }
+.planilla-item .tipo.electronico { background: #F3E5F5; color: #6A1B9A; }
+.planilla-item .tipo.neumatico { background: #E8F5E9; color: #1B5E20; }
+.planilla-item .tipo.otro { background: #ECEFF1; color: #37474F; }
+.planilla-item .modulo {
+    font-weight: 600;
+}
+.planilla-item .horas {
+    text-align: center;
+    font-weight: 700;
+    color: var(--verdeM);
+}
+.planilla-item .repuesto {
+    font-size: 11px;
+    color: var(--sub);
+    text-align: center;
+}
+.planilla-item .acciones {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+.planilla-item .acciones button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.planilla-item .acciones button:hover {
+    background: var(--grisC);
+}
+
+/* Resumen del día */
+.resumen-dia {
+    background: var(--azulC);
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--azul);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Planilla vacía */
+.planilla-vacia {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--sub);
+}
+.planilla-vacia .icono {
+    font-size: 40px;
+    margin-bottom: 8px;
+}
+.planilla-vacia .titulo {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--texto);
 }
 
 /* ============================================
@@ -1210,6 +1386,20 @@ body {
         font-size: 10px;
     }
     .sub-codigo { font-size: 9px; }
+    
+    /* Planillas responsive */
+    .planilla-item {
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+    .planilla-item .fecha { grid-column: 1 / -1; }
+    .planilla-item .acciones { grid-column: 1 / -1; justify-content: flex-end; }
+    .empleado-planilla-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 }
 
 /* Móviles pequeños */
