@@ -26,6 +26,10 @@ let pingInterval = null;
 let planillas = [];
 let planillasInterval = null;
 
+// CORRECTIVOS
+let correctivos = [];
+let correctivosCargados = false;
+
 // ============================================================
 //  DOM REFERENCIAS
 // ============================================================
@@ -69,10 +73,12 @@ function doLogin() {
         if (data.rol === 'admin') {
             $('adminTabBtn').style.display = 'block';
             $('planillasRecibidasBtn').style.display = 'block';
+            $('correctivosBtn').style.display = 'block';
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
         } else {
             $('adminTabBtn').style.display = 'none';
             $('planillasRecibidasBtn').style.display = 'none';
+            $('correctivosBtn').style.display = 'none';
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'none');
         }
         
@@ -82,6 +88,7 @@ function doLogin() {
         cargarPlanillasDesdeServidor().then(() => {
             iniciarPollingPlanillas();
         });
+        cargarCorrectivos();
     })
     .catch(err => {
         showLoading(false);
@@ -278,6 +285,11 @@ function switchTab(tab) {
     if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') {
         renderPlanillasRecibidas();
         if (!planillasInterval) iniciarPollingPlanillas();
+    }
+    if (tab === 'correctivos' && currentUser?.rol === 'admin') {
+        cargarCorrectivos().then(() => {
+            renderCorrectivosPorTecnico();
+        });
     }
 }
 
@@ -1676,67 +1688,308 @@ function actualizarVisibilidadPlanillas() {
     if (planillasRecibidasBtn) {
         planillasRecibidasBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
     }
+    const correctivosBtn = document.getElementById('correctivosBtn');
+    if (correctivosBtn) {
+        correctivosBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
+    }
 }
 
-// Override de switchTab
-const originalSwitchTab = switchTab;
-switchTab = function(tab) {
-    originalSwitchTab(tab);
-    if (tab === 'planilla') {
-        initPlanillaFecha();
-        if (token) cargarPlanillasDesdeServidor();
+// ============================================================
+//  REGISTROS CORRECTIVOS
+// ============================================================
+
+function cargarCorrectivos() {
+    if (!token) return Promise.resolve([]);
+    
+    return apiCall('/api/correctivos')
+        .then(data => {
+            correctivos = data || [];
+            correctivosCargados = true;
+            return correctivos;
+        })
+        .catch(err => {
+            console.log('Error al cargar correctivos:', err);
+            return [];
+        });
+}
+
+function getTecnicosDeCorrectivos() {
+    return [...new Set(correctivos.map(c => c.tecnico).filter(Boolean))].sort();
+}
+
+function renderCorrectivosPorTecnico() {
+    const container = document.getElementById('correctivosList');
+    if (!container) return;
+    
+    const filtroBusqueda = document.getElementById('correctivosSearch')?.value?.toLowerCase() || '';
+    const tecnicos = getTecnicosDeCorrectivos();
+    
+    if (tecnicos.length === 0) {
+        container.innerHTML = `
+            <div class="planilla-vacia">
+                <div class="icono">📋</div>
+                <div class="titulo">Sin registros correctivos</div>
+                <p>Importá el archivo Excel para ver los registros.</p>
+            </div>
+        `;
+        return;
     }
-    if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') {
-        renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
-        if (!planillasInterval) iniciarPollingPlanillas();
+    
+    let tecnicosFiltrados = tecnicos;
+    if (filtroBusqueda) {
+        tecnicosFiltrados = tecnicosFiltrados.filter(t => 
+            t.toLowerCase().includes(filtroBusqueda)
+        );
     }
-};
-
-// Override de doLogin
-const originalDoLogin = doLogin;
-doLogin = function() {
-    originalDoLogin();
-    setTimeout(() => {
-        actualizarVisibilidadPlanillas();
-        initPlanillaFecha();
-        if (token) {
-            cargarPlanillasDesdeServidor().then(() => {
-                iniciarPollingPlanillas();
-            });
-        }
-    }, 1000);
-};
-
-// Override de doLogout
-const originalDoLogout = doLogout;
-doLogout = function() {
-    detenerPollingPlanillas();
-    originalDoLogout();
-    actualizarVisibilidadPlanillas();
-};
-
-// Detectar cuando el usuario vuelve a la pestaña
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden && token) {
-        sincronizarPlanillas();
+    
+    if (tecnicosFiltrados.length === 0) {
+        container.innerHTML = `
+            <div class="planilla-vacia">
+                <div class="icono">🔍</div>
+                <div class="titulo">No se encontraron técnicos</div>
+                <p>Probá con otra búsqueda.</p>
+            </div>
+        `;
+        return;
     }
-});
+    
+    let html = '';
+    tecnicosFiltrados.forEach(tecnico => {
+        const registros = correctivos
+            .filter(c => c.tecnico === tecnico)
+            .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        
+        const registrosPorDia = {};
+        const registrosMostrar = [];
+        
+        registros.forEach(r => {
+            const dia = r.fecha;
+            if (!registrosPorDia[dia]) registrosPorDia[dia] = 0;
+            if (registrosPorDia[dia] < 7) {
+                registrosPorDia[dia]++;
+                registrosMostrar.push(r);
+            }
+        });
+        
+        const totalHoras = registros.reduce((sum, r) => sum + (parseFloat(r.tiempo) || 0), 0);
+        
+        html += `
+            <div class="empleado-planilla-card">
+                <div class="empleado-planilla-header" onclick="toggleCorrectivosTecnico('${tecnico}')">
+                    <span class="nombre">👤 ${tecnico}</span>
+                    <span class="badge-count">${registros.length} tareas · ${totalHoras}h</span>
+                    <span class="toggle-icon" id="toggleCorrectivosIcon_${tecnico}">+</span>
+                </div>
+                <div class="empleado-planilla-body" id="correctivosBody_${tecnico}">
+                    ${registrosMostrar.map(r => `
+                        <div class="planilla-item" style="${r.id === registros[0]?.id ? 'background:var(--verdeC);border-left:3px solid var(--verdeM);' : ''}">
+                            <span class="fecha">${r.fecha}</span>
+                            <span class="tipo ${(r.tipoIntervencion || 'otro').toLowerCase()}">${r.tipoIntervencion || '—'}</span>
+                            <span class="modulo">${r.modulo || '—'}</span>
+                            <span class="horas">${r.tiempo || 0}h</span>
+                            <span class="repuesto">${r.maquina || '—'}</span>
+                            <div class="acciones">
+                                <button onclick="verCorrectivoDetalle('${r.id}')" title="Ver detalle">👁️</button>
+                                <button onclick="eliminarCorrectivo('${r.id}')" title="Eliminar">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                    ${registros.length > 7 ? `<div style="text-align:center;font-size:12px;color:var(--sub);padding:8px;">... y ${registros.length - 7} tareas más</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
 
-// Inicializar cuando carga la página
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        actualizarVisibilidadPlanillas();
-        initPlanillaFecha();
-        if (currentUser?.rol === 'admin' && currentTab === 'planillasRecibidas') {
-            renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+function toggleCorrectivosTecnico(tecnico) {
+    const body = document.getElementById(`correctivosBody_${tecnico}`);
+    const icon = document.getElementById(`toggleCorrectivosIcon_${tecnico}`);
+    if (body) {
+        body.classList.toggle('open');
+        if (icon) {
+            icon.textContent = body.classList.contains('open') ? '✕' : '+';
+            icon.classList.toggle('open');
         }
-        if (token) {
-            cargarPlanillasDesdeServidor().then(() => {
-                iniciarPollingPlanillas();
-            });
-        }
-    }, 1000);
-});
+    }
+}
+
+function verCorrectivoDetalle(id) {
+    const registro = correctivos.find(c => c.id === id);
+    if (!registro) {
+        showToast('Registro no encontrado', false);
+        return;
+    }
+    
+    const detalle = `
+📋 REGISTRO CORRECTIVO
+━━━━━━━━━━━━━━━━━━━━━
+🔢 ID: ${registro.id}
+📅 Fecha: ${registro.fecha}
+👤 Técnico: ${registro.tecnico}
+🏭 Máquina: ${registro.maquina || '—'}
+🔧 Tipo: ${registro.tipoIntervencion || '—'}
+📌 Módulo: ${registro.modulo || '—'}
+📝 Solución: ${registro.solucion || '—'}
+✅ Operativa: ${registro.operativa ? 'Sí' : 'No'}
+💬 Comentarios: ${registro.comentarios || '—'}
+📋 Tipo Orden: ${registro.tipoOrden || '—'}
+⏱ Tiempo: ${registro.tiempo || 0}h
+    `;
+    
+    alert(detalle);
+}
+
+function eliminarCorrectivo(id) {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden eliminar', false);
+        return;
+    }
+    
+    if (!confirm('¿Eliminar este registro permanentemente?')) return;
+    
+    showLoading(true);
+    apiCall(`/api/correctivos/${id}`, { method: 'DELETE' })
+        .then(() => {
+            showLoading(false);
+            correctivos = correctivos.filter(c => c.id !== id);
+            renderCorrectivosPorTecnico();
+            showToast('✅ Registro eliminado');
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+function importarCorrectivosExcel() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden importar', false);
+        return;
+    }
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const wb = XLSX.read(event.target.result, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws);
+                
+                if (!data || data.length === 0) {
+                    showToast('El archivo está vacío', false);
+                    return;
+                }
+                
+                const registros = data.map(row => ({
+                    id: parseInt(row['ID_Tarea']) || Date.now() + Math.random() * 1000,
+                    fecha: row['Fecha'] ? new Date(row['Fecha']).toISOString().split('T')[0] : '',
+                    tecnico: String(row['Tecnico'] || '').trim(),
+                    maquina: String(row['Maquina'] || '').trim(),
+                    falla: String(row['Falla'] || '').trim(),
+                    turno: String(row['Turno'] || '').trim(),
+                    tipoIntervencion: String(row['Tipo de intervencion'] || '').trim(),
+                    modulo: String(row['Modulo Intervenido'] || '').trim(),
+                    solucion: String(row['Solucion'] || '').trim(),
+                    operativa: row['Operativa'] === true || row['Operativa'] === 'True' || row['Operativa'] === 1,
+                    comentarios: String(row['Comentarios'] || '').trim(),
+                    tipoOrden: String(row['Tipo de Orden'] || '').trim(),
+                    tiempo: parseFloat(row['Tiempo de trabajo']) || 0
+                }));
+                
+                const validos = registros.filter(r => r.tecnico && r.id);
+                
+                if (validos.length === 0) {
+                    showToast('No se encontraron registros válidos', false);
+                    return;
+                }
+                
+                if (!confirm(`¿Importar ${validos.length} registros correctivos?`)) return;
+                
+                showLoading(true);
+                apiCall('/api/correctivos/import', {
+                    method: 'POST',
+                    body: JSON.stringify({ registros: validos })
+                })
+                .then(result => {
+                    showLoading(false);
+                    showToast(`✅ ${result.agregados} registros importados (${result.total} totales)`);
+                    cargarCorrectivos().then(() => {
+                        renderCorrectivosPorTecnico();
+                    });
+                })
+                .catch(err => {
+                    showLoading(false);
+                    showToast('❌ Error al importar: ' + err.message, false);
+                });
+                
+            } catch (err) {
+                showToast('❌ Error al leer el archivo: ' + err.message, false);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        input.value = '';
+    };
+    input.click();
+}
+
+function exportarCorrectivosExcel() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden exportar', false);
+        return;
+    }
+    
+    if (correctivos.length === 0) {
+        showToast('No hay registros para exportar', false);
+        return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    
+    const data = correctivos.map(r => ({
+        'ID': r.id,
+        'Fecha': r.fecha,
+        'Técnico': r.tecnico,
+        'Máquina': r.maquina || '',
+        'Falla': r.falla || '',
+        'Turno': r.turno || '',
+        'Tipo Intervención': r.tipoIntervencion || '',
+        'Módulo Intervenido': r.modulo || '',
+        'Solución': r.solucion || '',
+        'Operativa': r.operativa ? 'Sí' : 'No',
+        'Comentarios': r.comentarios || '',
+        'Tipo Orden': r.tipoOrden || '',
+        'Tiempo (h)': r.tiempo || 0
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+        { wch: 8 }, { wch: 12 }, { wch: 18 }, { wch: 15 },
+        { wch: 25 }, { wch: 12 }, { wch: 18 }, { wch: 20 },
+        { wch: 35 }, { wch: 10 }, { wch: 30 }, { wch: 18 }, { wch: 10 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Correctivos');
+    
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `correctivos_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+    
+    showToast('✅ Correctivos exportados a Excel');
+}
 
 // ============================================================
 //  INICIO - Verificar token guardado
@@ -1756,6 +2009,7 @@ if (savedToken) {
                 rolSpan.className = 'rol admin-badge';
                 $('adminTabBtn').style.display = 'block';
                 $('planillasRecibidasBtn').style.display = 'block';
+                $('correctivosBtn').style.display = 'block';
                 document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
                 loadDataFromServer();
                 iniciarPing();
@@ -1763,6 +2017,7 @@ if (savedToken) {
                 cargarPlanillasDesdeServidor().then(() => {
                     iniciarPollingPlanillas();
                 });
+                cargarCorrectivos();
             } else {
                 localStorage.removeItem('panol_token');
             }
@@ -1784,4 +2039,5 @@ console.log('🔗 Conectado a:', API_URL);
 console.log('📱 Versión mobile optimizada');
 console.log('📋 Sistema de Planillas de Trabajo con tiempo real cargado');
 console.log('🔄 Polling activo cada 5 segundos para planillas');
+console.log('🔧 Sistema de Registros Correctivos cargado');
 console.log('💡 Para importar Excel, asegúrate que la columna se llame "Stock Inicial"');
