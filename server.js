@@ -9,19 +9,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// ============================================================
-//  SERVIR ARCHIVOS ESTÁTICOS (HTML, CSS, JS)
-//  ¡DEBEN IR ANTES DE LAS RUTAS API!
-// ============================================================
+// Servir archivos estáticos
 app.use(express.static(path.join(__dirname)));
 
-// Ruta principal - Sirve index.html
+// Ruta principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // ============================================================
-//  BASE DE DATOS Y CONFIGURACIÓN
+//  BASE DE DATOS
 // ============================================================
 const DATA_FILE = path.join(__dirname, 'data.json');
 
@@ -38,6 +35,7 @@ if (!fs.existsSync(DATA_FILE)) {
             { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO" }
         ],
         movimientos: [],
+        planillas: [],
         usuarios: {
             admin: { password: 'admin123', rol: 'admin' },
             empleado1: { password: 'empleado123', rol: 'empleado' },
@@ -52,7 +50,7 @@ function readData() {
         const data = fs.readFileSync(DATA_FILE, 'utf8');
         return JSON.parse(data);
     } catch (error) {
-        return { items: [], movimientos: [], usuarios: {} };
+        return { items: [], movimientos: [], planillas: [], usuarios: {} };
     }
 }
 
@@ -85,7 +83,7 @@ function authenticate(req, res, next) {
 }
 
 // ============================================================
-//  RUTAS API
+//  RUTAS API - STOCK
 // ============================================================
 
 app.post('/api/login', (req, res) => {
@@ -106,12 +104,7 @@ app.post('/api/login', (req, res) => {
     user.lastLogin = new Date().toISOString();
     writeData(data);
     
-    res.json({ 
-        success: true, 
-        token: token,
-        username: username,
-        rol: user.rol
-    });
+    res.json({ success: true, token: token, username: username, rol: user.rol });
 });
 
 app.post('/api/logout', authenticate, (req, res) => {
@@ -302,7 +295,79 @@ app.get('/api/stats', authenticate, (req, res) => {
 });
 
 // ============================================================
-//  INICIAR SERVIDOR - SIEMPRE AL FINAL
+//  RUTAS API - PLANILLAS DE TRABAJO
+// ============================================================
+
+app.get('/api/planillas', authenticate, (req, res) => {
+    const data = readData();
+    const planillas = data.planillas || [];
+    
+    if (req.user.rol === 'admin') {
+        res.json(planillas);
+    } else {
+        res.json(planillas.filter(p => p.usuario === req.user.username));
+    }
+});
+
+app.post('/api/planillas', authenticate, (req, res) => {
+    const { fecha, tipo, modulo, descripcion, horas, repuesto, observaciones } = req.body;
+    
+    if (!fecha || !tipo || !modulo || !descripcion || !horas) {
+        return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
+    
+    const data = readData();
+    if (!data.planillas) data.planillas = [];
+    
+    const nuevaPlanilla = {
+        id: Date.now(),
+        fecha,
+        tipo,
+        modulo,
+        descripcion,
+        horas: Number(horas),
+        repuesto: repuesto || 'Ninguno',
+        observaciones: observaciones || '',
+        usuario: req.user.username,
+        tecnico: req.user.username,
+        timestamp: new Date().toISOString()
+    };
+    
+    data.planillas.unshift(nuevaPlanilla);
+    writeData(data);
+    res.json({ success: true, planilla: nuevaPlanilla });
+});
+
+app.delete('/api/planillas/:id', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores pueden eliminar planillas' });
+    }
+    
+    const data = readData();
+    if (!data.planillas) data.planillas = [];
+    
+    const index = data.planillas.findIndex(p => p.id === parseInt(req.params.id));
+    if (index === -1) {
+        return res.status(404).json({ error: 'Planilla no encontrada' });
+    }
+    
+    data.planillas.splice(index, 1);
+    writeData(data);
+    res.json({ success: true });
+});
+
+app.get('/api/planillas/usuario/:username', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores pueden ver planillas de otros usuarios' });
+    }
+    
+    const data = readData();
+    const planillas = (data.planillas || []).filter(p => p.usuario === req.params.username);
+    res.json(planillas);
+});
+
+// ============================================================
+//  INICIAR SERVIDOR
 // ============================================================
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
