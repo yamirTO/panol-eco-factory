@@ -75,6 +75,7 @@
             <button class="tab-btn" data-tab="categorias">📂 Categorías</button>
             <button class="tab-btn" data-tab="planilla">📋 Planilla</button>
             <button class="tab-btn" data-tab="planillasRecibidas" id="planillasRecibidasBtn" style="display:none;">📊 Planillas Recibidas</button>
+            <button class="tab-btn" data-tab="correctivos" id="correctivosBtn" style="display:none;">🔧 Correctivos</button>
             <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none;">⚙️ Admin</button>
         </nav>
 
@@ -307,7 +308,6 @@
                     <h2 class="form-title">📊 Planillas Recibidas</h2>
                     <p class="form-subtitle">Visualizá los trabajos registrados por cada empleado</p>
                     
-                    <!-- Filtros -->
                     <div class="filters planilla-filters">
                         <select class="category-select" id="planillaFiltroEmpleado" onchange="filtrarPlanillasPorEmpleado()">
                             <option value="">Todos los empleados</option>
@@ -316,8 +316,24 @@
                         <button class="btn btn-primary" onclick="exportarPlanillasExcel()" style="max-width:200px;background:#1565C0;">📥 Exportar Excel</button>
                     </div>
                     
-                    <!-- Lista de empleados con sus planillas -->
                     <div id="planillasRecibidasList"></div>
+                </div>
+            </section>
+
+            <!-- CORRECTIVOS (ADMIN) -->
+            <section class="section" id="correctivosSection">
+                <div class="form-container" style="max-width:100%;">
+                    <h2 class="form-title">🔧 Registros Correctivos</h2>
+                    <p class="form-subtitle">Visualizá los trabajos correctivos por técnico</p>
+                    
+                    <div class="filters planilla-filters">
+                        <input type="text" class="search-input" id="correctivosSearch" placeholder="🔍 Buscar técnico..." oninput="renderCorrectivosPorTecnico()" style="max-width:300px;">
+                        <button class="btn btn-primary" onclick="importarCorrectivosExcel()" style="background:#E65100;">📂 Importar Excel</button>
+                        <button class="btn btn-primary" onclick="exportarCorrectivosExcel()" style="background:#1565C0;">📥 Exportar Excel</button>
+                        <button class="btn btn-primary" onclick="cargarCorrectivos().then(() => renderCorrectivosPorTecnico())" style="background:var(--verdeM);">🔄 Recargar</button>
+                    </div>
+                    
+                    <div id="correctivosList"></div>
                 </div>
             </section>
 
