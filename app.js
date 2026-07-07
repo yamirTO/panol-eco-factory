@@ -2072,7 +2072,6 @@ console.log('🔄 Polling activo cada 5 segundos para planillas');
 console.log('🔧 Sistema de Registros Correctivos cargado');
 console.log('💡 Para importar Excel, asegúrate que la columna se llame "Stock Inicial"');
 
-
 // ============================================================
 //  ÓRDENES DE TRABAJO
 // ============================================================
@@ -2571,4 +2570,106 @@ function processFileOT(file) {
             preview.style.display = 'block';
             const mostrar = importDataOT.length > 100 ? importDataOT.slice(0, 100) : importDataOT;
             
-            preview.innerHTML = '<div style="font-size:12px;font-weight:700
+            preview.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--sub);margin:8px 0;">Vista previa (' + importDataOT.length + ' registros)</div><div class="preview-table-wrap"><table><thead><tr><th>ID</th><th>Fecha</th><th>Máquina</th><th>Falla</th><th>Técnico</th><th>Tipo</th><th>Horas</th></tr></thead><tbody>' +
+                mostrar.map(o => {
+                    const fechaMostrar = o.Fecha ? fechaToMMDDAAOT(o.Fecha) : '';
+                    return '<tr><td>' + (o.ID_Tarea || '') + '</td><td>' + fechaMostrar + '</td><td>' + (o.Maquina || '') + '</td><td>' + (o.Falla || '') + '</td><td>' + (o.Tecnico || '') + '</td><td>' + (o['Tipo de intervencion'] || '') + '</td><td>' + (o['Tiempo de trabajo'] || 0) + '</td></tr>';
+                }).join('') +
+                '</tbody></table></div>';
+            
+            document.getElementById('importButtonsOT').style.display = 'flex';
+            guardarOTLocal();
+            cargarSelectoresOT();
+        } catch (err) {
+            console.error(err);
+            showToast('❌ Error: ' + err.message, false);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    document.getElementById('fileInputOT').value = '';
+}
+
+function confirmarImportacionOT() {
+    if (!importDataOT || importDataOT.length === 0) {
+        showToast('No hay datos para importar', false);
+        return;
+    }
+    ordenes = [];
+    let idActual = 1;
+    for (let row of importDataOT) {
+        let id = row.ID_Tarea || '';
+        if (!id || isNaN(parseInt(id))) {
+            id = idActual;
+            idActual++;
+        } else {
+            id = parseInt(id);
+            if (id >= idActual) idActual = id + 1;
+        }
+        const nuevaOT = {
+            id: id,
+            fecha: row.Fecha || '',
+            maquina: row.Maquina || '',
+            turno: row.Turno || '',
+            falla: row.Falla || '',
+            tipo: row['Tipo de intervencion'] || '',
+            modulo: row['Modulo Intervenido'] || '',
+            tecnico: row.Tecnico || '',
+            horas: parseFloat(row['Tiempo de trabajo']) || 0,
+            repuestos: row.Repuestos || '',
+            solucion: row.Solucion || '',
+            operativa: row.Operativa || 'SI',
+            tipoOrden: row['Tipo de Orden'] || '',
+            comentarios: row.Comentarios || ''
+        };
+        ordenes.push(nuevaOT);
+    }
+    guardarOTLocal();
+    cerrarImportadorOT();
+    renderTablaOT();
+    showToast('✅ ' + ordenes.length + ' OT importadas');
+}
+
+function initOrdenes() {
+    const saved = localStorage.getItem('ot_ordenes_v2');
+    if (saved) {
+        try {
+            ordenes = JSON.parse(saved);
+        } catch(e) {}
+    }
+    renderTablaOT();
+}
+
+// Agregar al switchTab
+const originalSwitchTab = switchTab;
+switchTab = function(tab) {
+    originalSwitchTab(tab);
+    if (tab === 'ordenes') {
+        initOrdenes();
+        cargarSelectoresOT();
+    }
+};
+
+// Agregar visibilidad de pestaña
+function actualizarVisibilidadOrdenes() {
+    const ordenesBtn = document.getElementById('ordenesBtn');
+    if (ordenesBtn) {
+        ordenesBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
+    }
+}
+
+// Override de actualizarVisibilidadPlanillas
+const originalActualizarVisibilidad = actualizarVisibilidadPlanillas;
+actualizarVisibilidadPlanillas = function() {
+    originalActualizarVisibilidad();
+    actualizarVisibilidadOrdenes();
+};
+
+// Inicializar al cargar
+setTimeout(() => {
+    if (document.getElementById('ordenesSection')) {
+        initOrdenes();
+        cargarSelectoresOT();
+    }
+}, 500);
+
+console.log('📋 Sistema de Órdenes de Trabajo cargado');
