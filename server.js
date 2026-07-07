@@ -36,6 +36,7 @@ if (!fs.existsSync(DATA_FILE)) {
         ],
         movimientos: [],
         planillas: [],
+        correctivos: [],
         usuarios: {
             admin: { password: 'admin123', rol: 'admin' },
             empleado1: { password: 'empleado123', rol: 'empleado' },
@@ -50,7 +51,7 @@ function readData() {
         const data = fs.readFileSync(DATA_FILE, 'utf8');
         return JSON.parse(data);
     } catch (error) {
-        return { items: [], movimientos: [], planillas: [], usuarios: {} };
+        return { items: [], movimientos: [], planillas: [], correctivos: [], usuarios: {} };
     }
 }
 
@@ -364,6 +365,101 @@ app.get('/api/planillas/usuario/:username', authenticate, (req, res) => {
     const data = readData();
     const planillas = (data.planillas || []).filter(p => p.usuario === req.params.username);
     res.json(planillas);
+});
+
+// ============================================================
+//  RUTAS API - REGISTROS CORRECTIVOS
+// ============================================================
+
+app.get('/api/correctivos', authenticate, (req, res) => {
+    const data = readData();
+    const correctivos = data.correctivos || [];
+    
+    if (req.user.rol === 'admin') {
+        res.json(correctivos);
+    } else {
+        res.json(correctivos.filter(c => c.tecnico === req.user.username));
+    }
+});
+
+app.post('/api/correctivos/import', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores pueden importar' });
+    }
+    
+    const { registros } = req.body;
+    if (!registros || !Array.isArray(registros)) {
+        return res.status(400).json({ error: 'Datos inválidos' });
+    }
+    
+    const data = readData();
+    if (!data.correctivos) data.correctivos = [];
+    
+    const idsExistentes = new Set(data.correctivos.map(c => c.id));
+    let agregados = 0;
+    
+    registros.forEach(r => {
+        if (!idsExistentes.has(r.id)) {
+            data.correctivos.push({
+                ...r,
+                _importedAt: new Date().toISOString()
+            });
+            idsExistentes.add(r.id);
+            agregados++;
+        }
+    });
+    
+    writeData(data);
+    res.json({ success: true, agregados, total: data.correctivos.length });
+});
+
+app.get('/api/correctivos/tecnicos', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores' });
+    }
+    
+    const data = readData();
+    const correctivos = data.correctivos || [];
+    const tecnicos = [...new Set(correctivos.map(c => c.tecnico).filter(Boolean))];
+    res.json(tecnicos.sort());
+});
+
+app.get('/api/correctivos/tecnico/:nombre', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores' });
+    }
+    
+    const data = readData();
+    const correctivos = data.correctivos || [];
+    const filtrados = correctivos.filter(c => c.tecnico === req.params.nombre);
+    res.json(filtrados);
+});
+
+app.delete('/api/correctivos/:id', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores pueden eliminar' });
+    }
+    
+    const data = readData();
+    if (!data.correctivos) data.correctivos = [];
+    
+    const index = data.correctivos.findIndex(c => c.id === parseInt(req.params.id));
+    if (index === -1) {
+        return res.status(404).json({ error: 'Registro no encontrado' });
+    }
+    
+    data.correctivos.splice(index, 1);
+    writeData(data);
+    res.json({ success: true });
+});
+
+app.get('/api/correctivos/export', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores' });
+    }
+    
+    const data = readData();
+    res.json(data.correctivos || []);
 });
 
 // ============================================================
