@@ -62,16 +62,11 @@ function doLogin() {
         rolSpan.textContent = data.rol;
         rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
         
-        // ============================================================
-        //  OCULTAR BOTONES DE ADMIN PARA EMPLEADOS
-        // ============================================================
         if (data.rol === 'admin') {
             $('adminTabBtn').style.display = 'block';
-            // Mostrar botones de admin en el header (Importar Excel, Backup)
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
         } else {
             $('adminTabBtn').style.display = 'none';
-            // Ocultar botones de admin en el header
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'none');
         }
         
@@ -234,7 +229,6 @@ function estadoItem(actual, minimo, item) {
 //  TABS
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Navegación por tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const tab = this.dataset.tab;
@@ -242,7 +236,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // KPIs click
     document.querySelectorAll('.kpi-card').forEach(card => {
         card.addEventListener('click', function() {
             const filter = this.dataset.filter;
@@ -348,7 +341,7 @@ function editItemFromTable(codigo) {
 }
 
 // ============================================================
-//  EDITAR
+//  EDITAR (solo admin)
 // ============================================================
 function searchItemToEdit() {
     const val = $('editSearchInput').value.trim().toUpperCase();
@@ -831,8 +824,108 @@ function exportarDatos() {
 }
 
 // ============================================================
-//  BACKUP
+//  BACKUP - CON DIÁLOGO GUARDAR COMO
 // ============================================================
+async function downloadBackup() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden descargar backups', false);
+        return;
+    }
+
+    showLoading(true);
+    try {
+        const data = await apiCall('/api/backup');
+        showLoading(false);
+        
+        const wb = XLSX.utils.book_new();
+
+        const itemsData = data.items.map(item => ({
+            'Código': item.codigo,
+            'Descripción': item.descripcion,
+            'Categoría': item.categoria || '',
+            'Unidad': item.unidad || 'Unidad',
+            'Stock Inicial': item.inicial || 0,
+            'Stock Mínimo': item.minimo || 0,
+            'Stock Máximo': item.maximo || 0,
+            'Ubicación': item.ubicacion || '',
+            'Planta': item.planta || '',
+            'Crítico': item.critico || 'NO',
+            'Observaciones': item.obs || ''
+        }));
+
+        const wsItems = XLSX.utils.json_to_sheet(itemsData);
+        XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
+
+        const movsData = data.movimientos.map(m => ({
+            'Fecha': m.fecha || '',
+            'Hora': m.hora || '',
+            'Tipo': m.tipo || '',
+            'Código': m.codigo || '',
+            'Descripción': m.descripcion || '',
+            'Cantidad': m.cantidad || 0,
+            'Responsable': m.responsable || '',
+            'OT/Referencia': m.ot || '',
+            'Sector/Destino': m.sector || '',
+            'Observaciones': m.obs || ''
+        }));
+
+        const wsMovs = XLSX.utils.json_to_sheet(movsData);
+        XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimientos');
+
+        wsItems['!cols'] = [
+            { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
+            { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 15 },
+            { wch: 15 }, { wch: 10 }, { wch: 30 }
+        ];
+        wsMovs['!cols'] = [
+            { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 15 },
+            { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 18 },
+            { wch: 18 }, { wch: 30 }
+        ];
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+        // === MÉTODO 1: showSaveFilePicker (Chrome/Edge) ===
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: 'backup_pañol.xlsx',
+                    types: [{
+                        description: 'Excel Workbook',
+                        accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                showToast('✅ Backup guardado correctamente');
+                return;
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    showToast('⏹️ Descarga cancelada');
+                    return;
+                }
+                console.log('Fallback al método tradicional:', err);
+            }
+        }
+
+        // === MÉTODO 2: Método tradicional (fallback) ===
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'backup_pañol.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
+        showToast('✅ Backup descargado');
+        
+    } catch (err) {
+        showLoading(false);
+        showToast('❌ Error: ' + err.message, false);
+    }
+}
+
 function openBackupModal() {
     if (currentUser?.rol !== 'admin') {
         showToast('Solo administradores', false);
@@ -844,68 +937,6 @@ function openBackupModal() {
 
 function closeBackupModal() {
     $('backupModal').classList.remove('show');
-}
-
-function downloadBackup() {
-    if (currentUser?.rol !== 'admin') {
-        showToast('Solo administradores pueden descargar backups', false);
-        return;
-    }
-    
-    showLoading(true);
-    apiCall('/api/backup')
-        .then(data => {
-            showLoading(false);
-            const wb = XLSX.utils.book_new();
-
-            const itemsData = data.items.map(item => ({
-                'Código': item.codigo,
-                'Descripción': item.descripcion,
-                'Categoría': item.categoria || '',
-                'Unidad': item.unidad || 'Unidad',
-                'Stock Inicial': item.inicial || 0,
-                'Stock Mínimo': item.minimo || 0,
-                'Stock Máximo': item.maximo || 0,
-                'Ubicación': item.ubicacion || '',
-                'Planta': item.planta || '',
-                'Crítico': item.critico || 'NO',
-                'Observaciones': item.obs || ''
-            }));
-
-            const wsItems = XLSX.utils.json_to_sheet(itemsData);
-            XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
-
-            const movsData = data.movimientos.map(m => ({
-                'Fecha': m.fecha || '',
-                'Hora': m.hora || '',
-                'Tipo': m.tipo || '',
-                'Código': m.codigo || '',
-                'Descripción': m.descripcion || '',
-                'Cantidad': m.cantidad || 0,
-                'Responsable': m.responsable || '',
-                'OT/Referencia': m.ot || '',
-                'Sector/Destino': m.sector || '',
-                'Observaciones': m.obs || ''
-            }));
-
-            const wsMovs = XLSX.utils.json_to_sheet(movsData);
-            XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimientos');
-
-            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-            const blob = new Blob([wbout], { type: 'application/octet-stream' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'backup_pañol.xlsx';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(link.href), 100);
-            showToast('✅ Backup descargado');
-        })
-        .catch(err => {
-            showLoading(false);
-            showToast('❌ Error: ' + err.message, false);
-        });
 }
 
 function restoreBackup(event) {
@@ -1030,7 +1061,7 @@ function confirmRestore() {
 }
 
 // ============================================================
-//  IMPORT EXCEL - COMPLETO Y FUNCIONAL
+//  IMPORT EXCEL - CORREGIDO
 // ============================================================
 function openImportModal() {
     if (currentUser?.rol !== 'admin') {
@@ -1065,6 +1096,34 @@ function handleFileSelect(event) {
     if (event.target.files[0]) processFile(event.target.files[0]);
 }
 
+function mapearColumnas(headers) {
+    const map = {};
+    headers.forEach((h, i) => {
+        const n = String(h || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+        
+        if (n.includes('cod')) map.codigo = i;
+        if (n.includes('desc')) map.descripcion = i;
+        
+        // Stock - detecta varias formas
+        if (n.includes('stockinicial') || n === 'stockinicial' || n === 'stock_inicial' || n === 'stock inicial') {
+            map.stock = i;
+        }
+        if (n === 'stock' || n === 'stockactual' || n === 'cantidad') map.stock = i;
+        
+        if (n.includes('ubic')) map.ubicacion = i;
+        if (n.includes('plant')) map.planta = i;
+        if (n.includes('min')) map.minimo = i;
+        if (n.includes('max')) map.maximo = i;
+        if (n.includes('obs') || n.includes('nota')) map.obs = i;
+        if (n.includes('cat')) map.categoria = i;
+        if (n.includes('unid')) map.unidad = i;
+        if (n.includes('crit')) map.critico = i;
+    });
+    
+    console.log('🔍 Columnas detectadas:', map);
+    return map;
+}
+
 function processFile(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -1078,7 +1137,6 @@ function processFile(file) {
                 return;
             }
             
-            // Encontrar la fila de encabezados
             let hdrIdx = 0;
             for (let i = 0; i < Math.min(5, rows.length); i++) {
                 if (rows[i].some(c => typeof c === 'string' && c.trim())) {
@@ -1087,7 +1145,6 @@ function processFile(file) {
                 }
             }
             
-            // Mapear columnas
             const map = mapearColumnas(rows[hdrIdx]);
             
             if (map.codigo === undefined || map.descripcion === undefined) {
@@ -1095,22 +1152,26 @@ function processFile(file) {
                 return;
             }
             
-            // Procesar datos
             importData = rows.slice(hdrIdx + 1)
                 .filter(r => r[map.codigo] && String(r[map.codigo]).trim())
                 .map(r => {
+                    // IMPORTANTE: Asegurar que el stock se lee correctamente
+                    let stockValor = Number(r[map.stock] ?? 0);
+                    if (isNaN(stockValor)) stockValor = 0;
+                    
                     let criticoVal = String(r[map.critico] || '').trim().toUpperCase();
                     if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
+                    
                     return {
                         codigo: String(r[map.codigo] || '').trim(),
                         descripcion: String(r[map.descripcion] || '').trim(),
                         categoria: String(r[map.categoria] || 'Sin categoría').trim() || 'Sin categoría',
                         unidad: String(r[map.unidad] || 'Unidad').trim() || 'Unidad',
-                        inicial: Number(r[map.stock] ?? 0) || 0,
+                        inicial: stockValor,
                         minimo: Number(r[map.minimo] ?? 0) || 0,
                         maximo: Number(r[map.maximo] ?? 0) || 0,
                         ubicacion: String(r[map.ubicacion] || '').trim(),
-                        planta: String(r[map.planta] || '').trim(),
+                        planta: String(r[map.planta] || '').trim() || 'Planta 1',
                         critico: criticoVal,
                         obs: String(r[map.obs] || '').trim()
                     };
@@ -1121,7 +1182,6 @@ function processFile(file) {
                 return;
             }
             
-            // Mostrar vista previa
             $('dropZone').classList.add('loaded');
             $('dropIcon').textContent = '✅';
             $('dropText').textContent = file.name + ` (${importData.length} ítems)`;
@@ -1130,7 +1190,6 @@ function processFile(file) {
             $('importInfo').className = 'info-box success';
             $('importInfo').textContent = `✓ Listo para importar ${importData.length} ítems`;
             
-            // Vista previa
             const previewContainer = $('previewContainer');
             previewContainer.style.display = 'block';
             previewContainer.innerHTML = `
@@ -1146,7 +1205,7 @@ function processFile(file) {
                             <tr style="background:${i%2===0?'#fff':'var(--bg)'}">
                                 <td style="font-weight:700;color:var(--verde);">${r.codigo}</td>
                                 <td>${r.descripcion}</td>
-                                <td style="text-align:center;">${r.inicial}</td>
+                                <td style="text-align:center;font-weight:700;color:${r.inicial > 0 ? 'var(--verdeM)' : 'var(--rojo)'};">${r.inicial}</td>
                                 <td style="text-align:center;">${r.minimo}</td>
                                 <td style="text-align:center;">${r.maximo}</td>
                                 <td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td>
@@ -1166,25 +1225,6 @@ function processFile(file) {
     reader.readAsArrayBuffer(file);
 }
 
-function mapearColumnas(headers) {
-    const map = {};
-    headers.forEach((h, i) => {
-        const n = String(h || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
-        if (n.includes('cod')) map.codigo = i;
-        if (n.includes('desc')) map.descripcion = i;
-        if (n === 'stock' || n === 'stockactual' || n === 'cantidad') map.stock = i;
-        if (n.includes('ubic')) map.ubicacion = i;
-        if (n.includes('plant')) map.planta = i;
-        if (n.includes('min')) map.minimo = i;
-        if (n.includes('max')) map.maximo = i;
-        if (n.includes('obs') || n.includes('nota')) map.obs = i;
-        if (n.includes('cat')) map.categoria = i;
-        if (n.includes('unid')) map.unidad = i;
-        if (n.includes('crit')) map.critico = i;
-    });
-    return map;
-}
-
 function showImportError(msg) {
     $('importInfo').style.display = 'block';
     $('importInfo').className = 'info-box error';
@@ -1196,6 +1236,10 @@ function confirmImport() {
         showToast('No hay datos para importar', false);
         return;
     }
+
+    // Mostrar en consola para debug
+    console.log('📊 Importando datos:', importData.length, 'ítems');
+    console.log('📊 Muestra:', importData.slice(0, 3));
 
     showLoading(true);
     
@@ -1228,6 +1272,11 @@ function confirmImport() {
             
             const procesados = results.filter(r => r.status === 'fulfilled' && r.value?.success !== false).length;
             showToast(`✅ ${procesados} ítems procesados (importados/actualizados)`);
+            
+            // Mostrar cuántos tienen stock > 0
+            const conStock = importData.filter(i => i.inicial > 0).length;
+            console.log(`📦 ${conStock} ítems tienen stock inicial > 0`);
+            
             loadDataFromServer();
         })
         .catch(err => {
@@ -1275,3 +1324,4 @@ document.addEventListener('keydown', (e) => {
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
 console.log('🔗 Conectado a:', API_URL);
 console.log('📱 Versión mobile optimizada');
+console.log('💡 Para importar Excel, asegúrate que la columna se llame "Stock Inicial"');
