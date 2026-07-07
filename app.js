@@ -22,6 +22,9 @@ let categoriasExpandidas = {};
 let pingContador = 0;
 let pingInterval = null;
 
+// PLANILLAS
+let planillas = JSON.parse(localStorage.getItem('panol_planillas') || '[]');
+
 // ============================================================
 //  DOM REFERENCIAS
 // ============================================================
@@ -64,14 +67,17 @@ function doLogin() {
         
         if (data.rol === 'admin') {
             $('adminTabBtn').style.display = 'block';
+            $('planillasRecibidasBtn').style.display = 'block';
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
         } else {
             $('adminTabBtn').style.display = 'none';
+            $('planillasRecibidasBtn').style.display = 'none';
             document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'none');
         }
         
         loadDataFromServer();
         iniciarPing();
+        initPlanillaFecha();
     })
     .catch(err => {
         showLoading(false);
@@ -260,6 +266,8 @@ function switchTab(tab) {
     if (tab === 'movimiento') updateNewItemVisibility();
     if (tab === 'editar') resetEditForm();
     if (tab === 'categorias') renderCategorias();
+    if (tab === 'planilla') initPlanillaFecha();
+    if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') renderPlanillasRecibidas();
 }
 
 function showToast(msg, success = true) {
@@ -1237,7 +1245,6 @@ function confirmImport() {
         return;
     }
 
-    // Mostrar en consola para debug
     console.log('📊 Importando datos:', importData.length, 'ítems');
     console.log('📊 Muestra:', importData.slice(0, 3));
 
@@ -1273,7 +1280,6 @@ function confirmImport() {
             const procesados = results.filter(r => r.status === 'fulfilled' && r.value?.success !== false).length;
             showToast(`✅ ${procesados} ítems procesados (importados/actualizados)`);
             
-            // Mostrar cuántos tienen stock > 0
             const conStock = importData.filter(i => i.inicial > 0).length;
             console.log(`📦 ${conStock} ítems tienen stock inicial > 0`);
             
@@ -1283,6 +1289,319 @@ function confirmImport() {
             showLoading(false);
             showToast('❌ Error al importar: ' + err.message, false);
         });
+}
+
+// ============================================================
+//  PLANILLA DE TRABAJO
+// ============================================================
+
+function guardarPlanillas() {
+    localStorage.setItem('panol_planillas', JSON.stringify(planillas));
+}
+
+function initPlanillaFecha() {
+    const fechaInput = document.getElementById('planillaFecha');
+    if (fechaInput) {
+        const hoy = new Date();
+        const year = hoy.getFullYear();
+        const month = String(hoy.getMonth() + 1).padStart(2, '0');
+        const day = String(hoy.getDate()).padStart(2, '0');
+        fechaInput.value = `${year}-${month}-${day}`;
+    }
+    
+    const tecnicoInput = document.getElementById('planillaTecnico');
+    if (tecnicoInput && currentUser) {
+        tecnicoInput.value = currentUser.username;
+    }
+}
+
+function registrarPlanilla() {
+    if (!currentUser) {
+        showToast('Debés iniciar sesión', false);
+        return;
+    }
+    
+    const fecha = document.getElementById('planillaFecha').value;
+    const tipo = document.getElementById('planillaTipo').value;
+    const modulo = document.getElementById('planillaModulo').value.trim();
+    const descripcion = document.getElementById('planillaDescripcion').value.trim();
+    const tecnico = document.getElementById('planillaTecnico').value.trim() || currentUser.username;
+    const horas = parseFloat(document.getElementById('planillaHoras').value);
+    const repuesto = document.getElementById('planillaRepuesto').value.trim();
+    const observaciones = document.getElementById('planillaObservaciones').value.trim();
+    
+    if (!tipo) {
+        showToast('Seleccioná un tipo de trabajo', false);
+        return;
+    }
+    if (!modulo) {
+        showToast('Ingresá el módulo intervenido', false);
+        return;
+    }
+    if (!descripcion) {
+        showToast('Ingresá la descripción de la tarea', false);
+        return;
+    }
+    if (!horas || horas <= 0) {
+        showToast('Ingresá las horas invertidas', false);
+        return;
+    }
+    
+    const planilla = {
+        id: Date.now(),
+        fecha: fecha,
+        tipo: tipo,
+        modulo: modulo,
+        descripcion: descripcion,
+        tecnico: tecnico,
+        horas: horas,
+        repuesto: repuesto || 'Ninguno',
+        observaciones: observaciones || '',
+        usuario: currentUser.username,
+        timestamp: new Date().toISOString()
+    };
+    
+    planillas.unshift(planilla);
+    guardarPlanillas();
+    showToast('✅ Planilla registrada correctamente');
+    
+    document.getElementById('planillaTipo').value = '';
+    document.getElementById('planillaModulo').value = '';
+    document.getElementById('planillaDescripcion').value = '';
+    document.getElementById('planillaHoras').value = '';
+    document.getElementById('planillaRepuesto').value = '';
+    document.getElementById('planillaObservaciones').value = '';
+    
+    initPlanillaFecha();
+}
+
+function getPlanillasByEmpleado(empleado) {
+    return planillas.filter(p => p.usuario === empleado);
+}
+
+function getEmpleadosConPlanillas() {
+    return [...new Set(planillas.map(p => p.usuario))];
+}
+
+function renderPlanillasRecibidas() {
+    const container = document.getElementById('planillasRecibidasList');
+    if (!container) return;
+    
+    const filtroEmpleado = document.getElementById('planillaFiltroEmpleado');
+    const empleados = getEmpleadosConPlanillas();
+    const empleadoActual = filtroEmpleado?.value || '';
+    
+    if (filtroEmpleado) {
+        filtroEmpleado.innerHTML = `
+            <option value="">Todos los empleados</option>
+            ${empleados.map(e => `<option value="${e}" ${e === empleadoActual ? 'selected' : ''}>${e}</option>`).join('')}
+        `;
+    }
+    
+    let empleadosFiltrados = empleados;
+    if (empleadoActual) {
+        empleadosFiltrados = empleadosFiltrados.filter(e => e === empleadoActual);
+    }
+    
+    if (empleadosFiltrados.length === 0) {
+        container.innerHTML = `
+            <div class="planilla-vacia">
+                <div class="icono">📭</div>
+                <div class="titulo">Sin planillas registradas</div>
+                <p>Los empleados aún no han registrado trabajos.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    empleadosFiltrados.forEach(empleado => {
+        const planillasEmpleado = getPlanillasByEmpleado(empleado)
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        const planillasPorDia = {};
+        const planillasMostrar = [];
+        
+        planillasEmpleado.forEach(p => {
+            const dia = p.fecha;
+            if (!planillasPorDia[dia]) {
+                planillasPorDia[dia] = 0;
+            }
+            if (planillasPorDia[dia] < 7) {
+                planillasPorDia[dia]++;
+                planillasMostrar.push(p);
+            }
+        });
+        
+        html += `
+            <div class="empleado-planilla-card">
+                <div class="empleado-planilla-header" onclick="togglePlanillasEmpleado('${empleado}')">
+                    <span class="nombre">👤 ${empleado}</span>
+                    <span class="badge-count">${planillasMostrar.length} trabajos</span>
+                    <span class="toggle-icon" id="toggleIcon_${empleado}">+</span>
+                </div>
+                <div class="empleado-planilla-body" id="planillasBody_${empleado}">
+                    ${planillasMostrar.length > 0 ? planillasMostrar.map(p => `
+                        <div class="planilla-item">
+                            <span class="fecha">${p.fecha}</span>
+                            <span class="tipo ${p.tipo.toLowerCase()}">${p.tipo}</span>
+                            <span class="modulo">${p.modulo}</span>
+                            <span class="horas">${p.horas}h</span>
+                            <span class="repuesto">${p.repuesto || '—'}</span>
+                            <div class="acciones">
+                                <button onclick="verPlanillaDetalle('${p.id}')" title="Ver detalle">👁️</button>
+                                <button onclick="eliminarPlanilla('${p.id}')" title="Eliminar">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="planilla-vacia" style="padding:12px;">
+                            <p>Sin trabajos registrados</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function togglePlanillasEmpleado(empleado) {
+    const body = document.getElementById(`planillasBody_${empleado}`);
+    const icon = document.getElementById(`toggleIcon_${empleado}`);
+    if (body) {
+        body.classList.toggle('open');
+        if (icon) {
+            icon.textContent = body.classList.contains('open') ? '✕' : '+';
+            icon.classList.toggle('open');
+        }
+    }
+}
+
+function verPlanillaDetalle(id) {
+    const planilla = planillas.find(p => p.id === id);
+    if (!planilla) {
+        showToast('Planilla no encontrada', false);
+        return;
+    }
+    
+    const detalle = `📋 PLANILLA DE TRABAJO
+━━━━━━━━━━━━━━━━━━━━━
+📅 Fecha: ${planilla.fecha}
+👤 Técnico: ${planilla.tecnico}
+🔧 Tipo: ${planilla.tipo}
+📌 Módulo: ${planilla.modulo}
+📝 Descripción: ${planilla.descripcion}
+⏱ Horas: ${planilla.horas}
+🔩 Repuesto: ${planilla.repuesto || 'Ninguno'}
+💬 Observaciones: ${planilla.observaciones || '—'}`;
+    
+    alert(detalle);
+}
+
+function eliminarPlanilla(id) {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden eliminar', false);
+        return;
+    }
+    
+    if (!confirm('¿Eliminar esta planilla permanentemente?')) return;
+    
+    planillas = planillas.filter(p => p.id !== id);
+    guardarPlanillas();
+    renderPlanillasRecibidas();
+    showToast('✅ Planilla eliminada');
+}
+
+function filtrarPlanillasPorEmpleado() {
+    renderPlanillasRecibidas();
+}
+
+function filtrarPlanillasPorFecha() {
+    const fecha = document.getElementById('planillaFiltroFecha').value;
+    if (!fecha) {
+        renderPlanillasRecibidas();
+        return;
+    }
+    
+    const container = document.getElementById('planillasRecibidasList');
+    const empleados = getEmpleadosConPlanillas();
+    
+    let html = '';
+    empleados.forEach(empleado => {
+        const planillasEmpleado = getPlanillasByEmpleado(empleado)
+            .filter(p => p.fecha === fecha)
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        if (planillasEmpleado.length === 0) return;
+        
+        html += `
+            <div class="empleado-planilla-card">
+                <div class="empleado-planilla-header" onclick="togglePlanillasEmpleado('${empleado}_filtrado')">
+                    <span class="nombre">👤 ${empleado}</span>
+                    <span class="badge-count">${planillasEmpleado.length} trabajos</span>
+                    <span class="toggle-icon" id="toggleIcon_${empleado}_filtrado">+</span>
+                </div>
+                <div class="empleado-planilla-body" id="planillasBody_${empleado}_filtrado">
+                    ${planillasEmpleado.map(p => `
+                        <div class="planilla-item">
+                            <span class="fecha">${p.fecha}</span>
+                            <span class="tipo ${p.tipo.toLowerCase()}">${p.tipo}</span>
+                            <span class="modulo">${p.modulo}</span>
+                            <span class="horas">${p.horas}h</span>
+                            <span class="repuesto">${p.repuesto || '—'}</span>
+                            <div class="acciones">
+                                <button onclick="verPlanillaDetalle('${p.id}')">👁️</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html || '<div class="planilla-vacia"><div class="icono">📭</div><div class="titulo">Sin trabajos en esta fecha</div></div>';
+}
+
+function exportarPlanillasExcel() {
+    if (planillas.length === 0) {
+        showToast('No hay planillas para exportar', false);
+        return;
+    }
+    
+    const wb = XLSX.utils.book_new();
+    
+    const data = planillas.map(p => ({
+        'Fecha': p.fecha,
+        'Técnico': p.tecnico,
+        'Tipo': p.tipo,
+        'Módulo': p.modulo,
+        'Descripción': p.descripcion,
+        'Horas': p.horas,
+        'Repuesto': p.repuesto || 'Ninguno',
+        'Observaciones': p.observaciones || '',
+        'Registrado por': p.usuario
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+        { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 20 },
+        { wch: 40 }, { wch: 10 }, { wch: 20 }, { wch: 30 }, { wch: 15 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Planillas');
+    
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `planillas_trabajo_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+    
+    showToast('✅ Planillas exportadas a Excel');
 }
 
 // ============================================================
@@ -1302,9 +1621,11 @@ if (savedToken) {
                 rolSpan.textContent = 'admin';
                 rolSpan.className = 'rol admin-badge';
                 $('adminTabBtn').style.display = 'block';
+                $('planillasRecibidasBtn').style.display = 'block';
                 document.querySelectorAll('.header-btn.admin-only').forEach(el => el.style.display = 'inline-block');
                 loadDataFromServer();
                 iniciarPing();
+                initPlanillaFecha();
             } else {
                 localStorage.removeItem('panol_token');
             }
@@ -1324,4 +1645,5 @@ document.addEventListener('keydown', (e) => {
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
 console.log('🔗 Conectado a:', API_URL);
 console.log('📱 Versión mobile optimizada');
+console.log('📋 Sistema de Planillas de Trabajo cargado');
 console.log('💡 Para importar Excel, asegúrate que la columna se llame "Stock Inicial"');
