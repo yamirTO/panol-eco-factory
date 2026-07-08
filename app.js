@@ -205,7 +205,6 @@ function doLogin() {
             document.getElementById('ordenesBtn').style.display = 'none';
         }
 
-        // Cargar datos locales
         cargarDatosLocales();
         iniciarPing();
         initPlanillaFecha();
@@ -297,14 +296,12 @@ function showLoading(show) {
 //  CARGAR DATOS LOCALES
 // ============================================================
 function cargarDatosLocales() {
-    // Cargar items desde localStorage
     const savedItems = localStorage.getItem('panol_items');
     if (savedItems) {
         try {
             items = JSON.parse(savedItems);
         } catch(e) {}
     } else {
-        // Items iniciales
         items = [
             { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO" },
             { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO" },
@@ -318,7 +315,6 @@ function cargarDatosLocales() {
         localStorage.setItem('panol_items', JSON.stringify(items));
     }
 
-    // Cargar movimientos
     const savedMovs = localStorage.getItem('panol_movs');
     if (savedMovs) {
         try {
@@ -645,7 +641,6 @@ function saveEdit() {
     showLoading(true);
 
     if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
-        // Modo local
         const idx = items.findIndex(i => i.codigo === editingItemCodigo);
         if (idx !== -1) items[idx] = updatedItem;
         editingItemCodigo = newCodigo;
@@ -864,14 +859,12 @@ function registrarMovimiento() {
         showLoading(true);
 
         if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
-            // Modo local
             items.push({
                 codigo, descripcion, categoria, unidad,
                 inicial: Number(document.getElementById('newInicial').value) || 0,
                 minimo, maximo, ubicacion, planta, critico, obs: ''
             });
             localStorage.setItem('panol_items', JSON.stringify(items));
-            // Registrar movimiento localmente
             movs.unshift({
                 id: Date.now(),
                 fecha: new Date().toLocaleDateString('es-AR'),
@@ -939,7 +932,6 @@ function registrarMovimiento() {
     showLoading(true);
 
     if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
-        // Modo local
         movs.unshift({
             id: Date.now(),
             fecha: new Date().toLocaleDateString('es-AR'),
@@ -2056,7 +2048,7 @@ function actualizarVisibilidadPlanillas() {
 }
 
 // ============================================================
-//  ÓRDENES DE TRABAJO
+//  ÓRDENES DE TRABAJO - COMPLETO
 // ============================================================
 
 function guardarOTLocal() {
@@ -2067,7 +2059,8 @@ function guardarOTLocal() {
 }
 
 function cargarOrdenesDesdePlanillas() {
-    ordenes = planillas.map(p => ({
+    // Fusionar planillas con órdenes existentes
+    const ordenesFromPlanillas = planillas.map(p => ({
         id: p.id || Date.now(),
         fecha: p.fecha || '',
         maquina: p.modulo || '',
@@ -2082,6 +2075,15 @@ function cargarOrdenesDesdePlanillas() {
         comentarios: p.observaciones || '',
         _origen: 'planilla'
     }));
+
+    // Combinar sin duplicados
+    const idsExistentes = new Set(ordenes.map(o => o.id));
+    ordenesFromPlanillas.forEach(o => {
+        if (!idsExistentes.has(o.id)) {
+            ordenes.push(o);
+            idsExistentes.add(o.id);
+        }
+    });
 
     guardarOTLocal();
 }
@@ -2108,6 +2110,7 @@ function renderTablaOT() {
         return matchSearch && matchClasificacion && matchMaq && matchTec;
     });
 
+    // KPIs
     document.getElementById('totalOT').textContent = filtrados.length;
     const horas = filtrados.map(o => parseFloat(o.horas) || 0);
     const sumHoras = horas.reduce((a, b) => a + b, 0);
@@ -2116,6 +2119,7 @@ function renderTablaOT() {
     const repuestos = filtrados.filter(o => o.repuestos && o.repuestos.trim()).length;
     document.getElementById('totalRepuestosOT').textContent = repuestos;
 
+    // Actualizar filtros
     const maquinas = [...new Set(ordenes.map(o => o.maquina).filter(Boolean))].sort();
     const tecnicos = [...new Set(ordenes.map(o => o.tecnico).filter(Boolean))].sort();
 
@@ -2294,6 +2298,16 @@ function guardarOT(e) {
 
 function initOrdenes() {
     if (currentUser?.rol === 'admin') {
+        // Cargar órdenes guardadas
+        const saved = localStorage.getItem('ot_ordenes_v2');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed.length > 0) {
+                    ordenes = parsed;
+                }
+            } catch(e) {}
+        }
         cargarOrdenesDesdePlanillas();
         renderTablaOT();
     }
@@ -2341,7 +2355,7 @@ function exportarOTXLSX() {
 }
 
 // ============================================================
-//  IMPORTAR ÓRDENES DESDE EXCEL
+//  IMPORTAR ÓRDENES DESDE EXCEL - CORREGIDO
 // ============================================================
 let importDataOT = null;
 
@@ -2374,30 +2388,67 @@ function processFileOT(file) {
     reader.onload = function(e) {
         try {
             const wb = XLSX.read(e.target.result, { type: 'array' });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(ws);
+
+            // Buscar la primera hoja con datos
+            let wsDatos = null;
+            let nombreHoja = 'Datos';
+
+            for (let sheetName of wb.SheetNames) {
+                if (sheetName.toLowerCase().includes('datos') || sheetName.toLowerCase().includes('data')) {
+                    wsDatos = wb.Sheets[sheetName];
+                    nombreHoja = sheetName;
+                    break;
+                }
+            }
+            if (!wsDatos && wb.SheetNames.length > 0) {
+                wsDatos = wb.Sheets[wb.SheetNames[0]];
+                nombreHoja = wb.SheetNames[0];
+            }
+            if (!wsDatos) {
+                showToast('No se encontró ninguna hoja con datos', false);
+                return;
+            }
+
+            const data = XLSX.utils.sheet_to_json(wsDatos);
 
             if (!data || data.length === 0) {
                 showToast('El archivo está vacío', false);
                 return;
             }
 
-            importDataOT = data.map(row => ({
-                id: row['ID'] || Date.now() + Math.random() * 1000,
-                fecha: row['Fecha'] || '',
-                maquina: row['Máquina'] || '',
-                falla: row['Falla'] || '',
-                clasificacion: row['Clasificación'] || 'Orden de Trabajo',
-                tecnico: row['Técnico'] || '',
-                horas: parseFloat(row['Horas']) || 0,
-                repuestos: row['Repuestos'] || '',
-                solucion: row['Solución'] || '',
-                operativa: row['Operativa'] || 'SI',
-                comentarios: row['Comentarios'] || ''
-            }));
+            importDataOT = data.map(row => {
+                // Buscar columnas de forma flexible
+                const id = row['ID'] || row['id'] || row['ID_Tarea'] || row['ID_TAREA'] || Date.now() + Math.random() * 1000;
+                const fecha = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
+                const maquina = row['Máquina'] || row['Maquina'] || row['maquina'] || row['MÁQUINA'] || '';
+                const falla = row['Falla'] || row['falla'] || row['FALLA'] || '';
+                const clasificacion = row['Clasificación'] || row['Clasificacion'] || row['clasificacion'] || row['Tipo'] || row['tipo'] || 'Orden de Trabajo';
+                const tecnico = row['Técnico'] || row['Tecnico'] || row['tecnico'] || row['TÉCNICO'] || '';
+                const horas = parseFloat(row['Horas'] || row['horas'] || row['HORAS'] || row['Tiempo'] || row['tiempo'] || 0);
+                const repuestos = row['Repuestos'] || row['repuestos'] || row['REPUESTOS'] || '';
+                const solucion = row['Solución'] || row['Solucion'] || row['solucion'] || '';
+                const operativa = row['Operativa'] || row['operativa'] || 'SI';
+                const comentarios = row['Comentarios'] || row['comentarios'] || '';
+
+                return {
+                    id: id,
+                    fecha: fecha,
+                    maquina: maquina,
+                    falla: falla,
+                    clasificacion: clasificacion,
+                    tecnico: tecnico,
+                    horas: horas,
+                    repuestos: repuestos,
+                    solucion: solucion,
+                    operativa: operativa,
+                    comentarios: comentarios
+                };
+            });
+
+            importDataOT = importDataOT.filter(o => o.maquina || o.tecnico || o.falla);
 
             if (importDataOT.length === 0) {
-                showToast('No se encontraron datos válidos', false);
+                showToast('No se encontraron datos válidos. Asegurate de que el Excel tenga columnas: Máquina, Técnico, Fecha, etc.', false);
                 return;
             }
 
@@ -2418,9 +2469,9 @@ function processFileOT(file) {
                                 <tr>
                                     <td>${o.id}</td>
                                     <td>${o.fecha}</td>
-                                    <td>${o.maquina}</td>
+                                    <td>${o.maquina || '—'}</td>
                                     <td>${o.clasificacion}</td>
-                                    <td>${o.tecnico}</td>
+                                    <td>${o.tecnico || '—'}</td>
                                     <td>${o.horas}</td>
                                 </tr>
                             `).join('')}
@@ -2429,7 +2480,12 @@ function processFileOT(file) {
                     </table>
                 </div>
             `;
+
+            localStorage.setItem('ot_ordenes_v2', JSON.stringify(ordenes));
+            showToast('✅ Archivo procesado correctamente. ' + importDataOT.length + ' registros listos para importar.');
+
         } catch (err) {
+            console.error(err);
             showToast('❌ Error al leer el archivo: ' + err.message, false);
         }
     };
@@ -2443,14 +2499,32 @@ function confirmarImportacionOT() {
         return;
     }
 
+    let contador = 0;
     importDataOT.forEach(o => {
-        ordenes.push(o);
+        const existe = ordenes.find(ord => ord.id == o.id);
+        if (!existe) {
+            ordenes.push({
+                id: o.id || Date.now() + Math.random() * 1000,
+                fecha: o.fecha || new Date().toISOString().split('T')[0],
+                maquina: o.maquina || '',
+                falla: o.falla || '',
+                clasificacion: o.clasificacion || 'Orden de Trabajo',
+                tecnico: o.tecnico || '',
+                horas: o.horas || 0,
+                repuestos: o.repuestos || '',
+                solucion: o.solucion || '',
+                operativa: o.operativa || 'SI',
+                comentarios: o.comentarios || '',
+                _origen: 'importado'
+            });
+            contador++;
+        }
     });
 
     guardarOTLocal();
     cerrarImportadorOT();
     renderTablaOT();
-    showToast('✅ ' + importDataOT.length + ' órdenes importadas');
+    showToast('✅ ' + contador + ' órdenes importadas correctamente');
 }
 
 // ============================================================
@@ -2463,7 +2537,6 @@ if (savedToken && savedUser) {
     try {
         const userData = JSON.parse(savedUser);
         if (USUARIOS_LOCALES[userData.username]) {
-            // Usuario local
             currentUser = {
                 username: userData.username,
                 rol: userData.rol,
