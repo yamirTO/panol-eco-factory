@@ -4,6 +4,15 @@
 const API_URL = 'https://panol-eco-factory.onrender.com';
 
 // ============================================================
+//  USUARIOS LOCALES (para pruebas sin servidor)
+// ============================================================
+const USUARIOS_LOCALES = {
+    admin: { password: 'admin123', rol: 'admin' },
+    empleado1: { password: 'empleado123', rol: 'empleado' },
+    empleado2: { password: 'empleado123', rol: 'empleado' }
+};
+
+// ============================================================
 //  VARIABLES GLOBALES
 // ============================================================
 let token = null;
@@ -23,7 +32,7 @@ let pingContador = 0;
 let pingInterval = null;
 
 // PLANILLAS
-let planillas = [];
+let planillas = JSON.parse(localStorage.getItem('panol_planillas')) || [];
 let planillasInterval = null;
 
 // ÓRDENES DE TRABAJO
@@ -38,7 +47,7 @@ let modulosList = JSON.parse(localStorage.getItem('ot_modulos')) || ['Cabezal', 
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
-//  FUNCIÓN DE FECHA (para mostrar en MM/DD/AA)
+//  FUNCIÓN DE FECHA
 // ============================================================
 function fechaToMMDDAA(fechaStr) {
     if (!fechaStr) return '';
@@ -53,13 +62,103 @@ function fechaToMMDDAA(fechaStr) {
 }
 
 // ============================================================
-//  USUARIOS LOCALES (para pruebas sin servidor)
+//  FUNCIONES DE STOCK
 // ============================================================
-const USUARIOS_LOCALES = {
-    admin: { password: 'admin123', rol: 'admin' },
-    empleado1: { password: 'empleado123', rol: 'empleado' },
-    empleado2: { password: 'empleado123', rol: 'empleado' }
-};
+function stockActual(item) {
+    return movs.reduce((acc, m) => {
+        if (m.codigo !== item.codigo) return acc;
+        if (m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN') return acc + Number(m.cantidad);
+        if (m.tipo === 'SALIDA') return acc - Number(m.cantidad);
+        return acc;
+    }, item.inicial || 0);
+}
+
+function esCritico(item) {
+    return item.critico && item.critico.toUpperCase() === 'SI';
+}
+
+function estadoItem(actual, minimo, item) {
+    if (actual <= 0) return { label: '⛔ Sin stock', color: '#C62828', bg: '#FFCDD2' };
+    if (esCritico(item)) return { label: '🔴 Crítico', color: '#C62828', bg: '#FFEBEE' };
+    if (actual < minimo) return { label: '🟡 Reponer', color: '#E65100', bg: '#FFF8E1' };
+    return { label: '🟢 OK', color: '#2E7D32', bg: '#E8F5E9' };
+}
+
+// ============================================================
+//  API HELPER - VERSIÓN LOCAL (sin logout automático)
+// ============================================================
+function apiCall(endpoint, options = {}) {
+    // Si estamos usando usuarios locales (sin servidor)
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        // Simular respuestas para endpoints comunes
+        if (endpoint === '/api/items') {
+            return Promise.resolve(items);
+        }
+        if (endpoint === '/api/movimientos') {
+            return Promise.resolve(movs);
+        }
+        if (endpoint === '/api/stats') {
+            return Promise.resolve({
+                totalItems: items.length,
+                sinStock: items.filter(i => stockActual(i) <= 0).length,
+                criticos: items.filter(i => esCritico(i)).length,
+                totalMovimientos: movs.length,
+                categorias: [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length
+            });
+        }
+        if (endpoint === '/api/planillas') {
+            return Promise.resolve(planillas);
+        }
+        if (endpoint.startsWith('/api/planillas/') && options.method === 'DELETE') {
+            return Promise.resolve({ success: true });
+        }
+        if (endpoint === '/api/planillas' && options.method === 'POST') {
+            const body = JSON.parse(options.body);
+            const nuevaPlanilla = {
+                id: Date.now(),
+                ...body,
+                usuario: currentUser.username,
+                timestamp: new Date().toISOString()
+            };
+            planillas.unshift(nuevaPlanilla);
+            localStorage.setItem('panol_planillas', JSON.stringify(planillas));
+            return Promise.resolve({ success: true, planilla: nuevaPlanilla });
+        }
+        if (endpoint === '/api/backup') {
+            return Promise.resolve({ items, movimientos: movs, planillas, usuarios: USUARIOS_LOCALES });
+        }
+        if (endpoint.startsWith('/api/items/') && options.method === 'PUT') {
+            const body = JSON.parse(options.body);
+            const idx = items.findIndex(i => i.codigo === endpoint.split('/').pop());
+            if (idx !== -1) items[idx] = body;
+            return Promise.resolve({ success: true });
+        }
+        // Para otros endpoints, simular éxito
+        return Promise.resolve({ success: true });
+    }
+
+    // Si hay token real, usar el servidor
+    return fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token,
+                ...(options.headers || {})
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                if (data.error === 'Token inválido' || data.error === 'Token no proporcionado') {
+                    if (!currentUser || !USUARIOS_LOCALES[currentUser?.username]) {
+                        showToast('Sesión expirada. Iniciá sesión nuevamente.', false);
+                    }
+                }
+                throw new Error(data.error);
+            }
+            return data;
+        });
+}
 
 // ============================================================
 //  AUTENTICACIÓN
@@ -75,18 +174,65 @@ function doLogin() {
 
     showLoading(true);
 
-    // Primero intentar con usuarios locales
+    // Intentar con usuarios locales
     if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
         showLoading(false);
         const data = {
             success: true,
-            token: 'token_' + username + '_' + Date.now(),
+            token: 'token_local_' + username + '_' + Date.now(),
             username: username,
             rol: USUARIOS_LOCALES[username].rol
         };
         token = data.token;
         currentUser = data;
         localStorage.setItem('panol_token', token);
+        localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
+
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'flex';
+        document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
+        const rolSpan = document.getElementById('userRolDisplay');
+        rolSpan.textContent = data.rol;
+        rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
+
+        if (data.rol === 'admin') {
+            document.getElementById('adminTabBtn').style.display = 'block';
+            document.getElementById('planillasRecibidasBtn').style.display = 'block';
+            document.getElementById('ordenesBtn').style.display = 'block';
+        } else {
+            document.getElementById('adminTabBtn').style.display = 'none';
+            document.getElementById('planillasRecibidasBtn').style.display = 'none';
+            document.getElementById('ordenesBtn').style.display = 'none';
+        }
+
+        // Cargar datos locales
+        cargarDatosLocales();
+        iniciarPing();
+        initPlanillaFecha();
+        initOrdenes();
+        cargarSelectoresOT();
+        showToast('✅ Bienvenido ' + data.username);
+        return;
+    }
+
+    // Si no es usuario local, intentar con el servidor
+    fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    })
+    .then(res => res.json())
+    .then(data => {
+        showLoading(false);
+        if (data.error) {
+            showLoginError(data.error);
+            return;
+        }
+        token = data.token;
+        currentUser = data;
+        localStorage.setItem('panol_token', token);
+        localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
+
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('appScreen').style.display = 'flex';
         document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
@@ -113,57 +259,12 @@ function doLogin() {
         initOrdenes();
         cargarSelectoresOT();
         showToast('✅ Bienvenido ' + data.username);
-        return;
-    }
-
-    // Si no es usuario local, intentar con el servidor
-    fetch(`${API_URL}/api/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        })
-        .then(res => res.json())
-        .then(data => {
-            showLoading(false);
-            if (data.error) {
-                showLoginError(data.error);
-                return;
-            }
-            token = data.token;
-            currentUser = data;
-            localStorage.setItem('panol_token', token);
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('appScreen').style.display = 'flex';
-            document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
-            const rolSpan = document.getElementById('userRolDisplay');
-            rolSpan.textContent = data.rol;
-            rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
-
-            if (data.rol === 'admin') {
-                document.getElementById('adminTabBtn').style.display = 'block';
-                document.getElementById('planillasRecibidasBtn').style.display = 'block';
-                document.getElementById('ordenesBtn').style.display = 'block';
-            } else {
-                document.getElementById('adminTabBtn').style.display = 'none';
-                document.getElementById('planillasRecibidasBtn').style.display = 'none';
-                document.getElementById('ordenesBtn').style.display = 'none';
-            }
-
-            loadDataFromServer();
-            iniciarPing();
-            initPlanillaFecha();
-            cargarPlanillasDesdeServidor().then(() => {
-                iniciarPollingPlanillas();
-            });
-            initOrdenes();
-            cargarSelectoresOT();
-            showToast('✅ Bienvenido ' + data.username);
-        })
-        .catch(err => {
-            showLoading(false);
-            showLoginError('Error al conectar con el servidor');
-            console.error(err);
-        });
+    })
+    .catch(err => {
+        showLoading(false);
+        showLoginError('Error al conectar con el servidor');
+        console.error(err);
+    });
 }
 
 function doLogout() {
@@ -174,6 +275,7 @@ function doLogout() {
     token = null;
     currentUser = null;
     localStorage.removeItem('panol_token');
+    localStorage.removeItem('panol_user');
     document.getElementById('appScreen').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('loginPass').value = '';
@@ -189,6 +291,58 @@ function showLoginError(msg) {
 
 function showLoading(show) {
     document.getElementById('loadingOverlay').className = show ? 'loading-overlay show' : 'loading-overlay';
+}
+
+// ============================================================
+//  CARGAR DATOS LOCALES
+// ============================================================
+function cargarDatosLocales() {
+    // Cargar items desde localStorage
+    const savedItems = localStorage.getItem('panol_items');
+    if (savedItems) {
+        try {
+            items = JSON.parse(savedItems);
+        } catch(e) {}
+    } else {
+        // Items iniciales
+        items = [
+            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO" },
+            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO" },
+            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO" },
+            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO" },
+            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI" },
+            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO" },
+            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI" },
+            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO" }
+        ];
+        localStorage.setItem('panol_items', JSON.stringify(items));
+    }
+
+    // Cargar movimientos
+    const savedMovs = localStorage.getItem('panol_movs');
+    if (savedMovs) {
+        try {
+            movs = JSON.parse(savedMovs);
+        } catch(e) {}
+    }
+
+    renderStock();
+    renderHistory();
+    renderCategorias();
+    updateKPIsLocales();
+}
+
+function updateKPIsLocales() {
+    document.getElementById('kpiTotal').textContent = items.length;
+    document.getElementById('kpiSinStock').textContent = items.filter(i => stockActual(i) <= 0).length;
+    document.getElementById('kpiCriticos').textContent = items.filter(i => esCritico(i)).length;
+    document.getElementById('kpiCategorias').textContent = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length;
+    document.getElementById('kpiMovs').textContent = movs.length;
+}
+
+function saveItemsLocales() {
+    localStorage.setItem('panol_items', JSON.stringify(items));
+    localStorage.setItem('panol_movs', JSON.stringify(movs));
 }
 
 // ============================================================
@@ -210,6 +364,11 @@ function detenerPing() {
 
 function hacerPing() {
     pingContador++;
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        document.getElementById('pingStatus').textContent = `⏱ ${pingContador} ✅ (local)`;
+        document.getElementById('pingStatus').className = 'ping-status active';
+        return;
+    }
     fetch(`${API_URL}/api/items`, {
         headers: { 'Authorization': token || '' },
         signal: AbortSignal.timeout(10000)
@@ -224,31 +383,6 @@ function hacerPing() {
         statusEl.textContent = `⏱ ${pingContador} ⚠️`;
         statusEl.className = 'ping-status';
     });
-}
-
-// ============================================================
-//  API HELPER
-// ============================================================
-function apiCall(endpoint, options = {}) {
-    return fetch(`${API_URL}${endpoint}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': token,
-                ...(options.headers || {})
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.error) {
-                if (data.error === 'Token inválido' || data.error === 'Token no proporcionado') {
-                    doLogout();
-                    showToast('Sesión expirada', false);
-                }
-                throw new Error(data.error);
-            }
-            return data;
-        });
 }
 
 // ============================================================
@@ -290,29 +424,6 @@ function updateKPIsFromStats(stats) {
 }
 
 // ============================================================
-//  FUNCIONES DE STOCK
-// ============================================================
-function stockActual(item) {
-    return movs.reduce((acc, m) => {
-        if (m.codigo !== item.codigo) return acc;
-        if (m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN') return acc + Number(m.cantidad);
-        if (m.tipo === 'SALIDA') return acc - Number(m.cantidad);
-        return acc;
-    }, item.inicial || 0);
-}
-
-function esCritico(item) {
-    return item.critico && item.critico.toUpperCase() === 'SI';
-}
-
-function estadoItem(actual, minimo, item) {
-    if (actual <= 0) return { label: '⛔ Sin stock', color: '#C62828', bg: '#FFCDD2' };
-    if (esCritico(item)) return { label: '🔴 Crítico', color: '#C62828', bg: '#FFEBEE' };
-    if (actual < minimo) return { label: '🟡 Reponer', color: '#E65100', bg: '#FFF8E1' };
-    return { label: '🟢 OK', color: '#2E7D32', bg: '#E8F5E9' };
-}
-
-// ============================================================
 //  TABS
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
@@ -349,7 +460,6 @@ function switchTab(tab) {
     if (tab === 'categorias') renderCategorias();
     if (tab === 'planilla') {
         initPlanillaFecha();
-        cargarPlanillasDesdeServidor();
     }
     if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') {
         renderPlanillasRecibidas();
@@ -533,6 +643,21 @@ function saveEdit() {
     };
 
     showLoading(true);
+
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        // Modo local
+        const idx = items.findIndex(i => i.codigo === editingItemCodigo);
+        if (idx !== -1) items[idx] = updatedItem;
+        editingItemCodigo = newCodigo;
+        localStorage.setItem('panol_items', JSON.stringify(items));
+        showLoading(false);
+        showToast('✅ Ítem actualizado correctamente (local)');
+        loadItemForEdit(newCodigo);
+        renderStock();
+        renderCategorias();
+        return;
+    }
+
     apiCall(`/api/items/${editingItemCodigo}`, {
             method: 'PUT',
             body: JSON.stringify(updatedItem)
@@ -737,6 +862,38 @@ function registrarMovimiento() {
         if (!['SI', 'NO'].includes(critico)) critico = 'NO';
 
         showLoading(true);
+
+        if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+            // Modo local
+            items.push({
+                codigo, descripcion, categoria, unidad,
+                inicial: Number(document.getElementById('newInicial').value) || 0,
+                minimo, maximo, ubicacion, planta, critico, obs: ''
+            });
+            localStorage.setItem('panol_items', JSON.stringify(items));
+            // Registrar movimiento localmente
+            movs.unshift({
+                id: Date.now(),
+                fecha: new Date().toLocaleDateString('es-AR'),
+                hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+                tipo: currentTipo,
+                codigo, descripcion,
+                cantidad: cantidad,
+                responsable: responsable || currentUser.username,
+                ot, sector, obs,
+                usuario: currentUser.username
+            });
+            localStorage.setItem('panol_movs', JSON.stringify(movs));
+            showLoading(false);
+            limpiarFormularioMovimiento();
+            showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+            renderStock();
+            renderHistory();
+            renderCategorias();
+            updateKPIsLocales();
+            return;
+        }
+
         apiCall('/api/items', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -780,6 +937,31 @@ function registrarMovimiento() {
     }
 
     showLoading(true);
+
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        // Modo local
+        movs.unshift({
+            id: Date.now(),
+            fecha: new Date().toLocaleDateString('es-AR'),
+            hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+            tipo: currentTipo,
+            codigo, descripcion,
+            cantidad: cantidad,
+            responsable: responsable || currentUser.username,
+            ot, sector, obs,
+            usuario: currentUser.username
+        });
+        localStorage.setItem('panol_movs', JSON.stringify(movs));
+        showLoading(false);
+        limpiarFormularioMovimiento();
+        showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        updateKPIsLocales();
+        return;
+    }
+
     registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs)
         .then(() => {
             showLoading(false);
@@ -934,8 +1116,14 @@ async function downloadBackup() {
 
     showLoading(true);
     try {
-        const data = await apiCall('/api/backup');
-        showLoading(false);
+        let data;
+        if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+            data = { items, movimientos: movs, planillas, usuarios: USUARIOS_LOCALES };
+            showLoading(false);
+        } else {
+            data = await apiCall('/api/backup');
+            showLoading(false);
+        }
 
         const wb = XLSX.utils.book_new();
 
@@ -956,7 +1144,7 @@ async function downloadBackup() {
         const wsItems = XLSX.utils.json_to_sheet(itemsData);
         XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
 
-        const movsData = data.movimientos.map(m => ({
+        const movsData = (data.movimientos || []).map(m => ({
             'Fecha': m.fecha || '',
             'Hora': m.hora || '',
             'Tipo': m.tipo || '',
@@ -1136,6 +1324,23 @@ function confirmRestore() {
     }
 
     showLoading(true);
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        items = pendingRestoreData.items;
+        movs = pendingRestoreData.movs;
+        localStorage.setItem('panol_items', JSON.stringify(items));
+        localStorage.setItem('panol_movs', JSON.stringify(movs));
+        showLoading(false);
+        document.getElementById('restoreInfo').style.display = 'none';
+        pendingRestoreData = null;
+        closeBackupModal();
+        showToast('✅ Datos restaurados correctamente (local)');
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        updateKPIsLocales();
+        return;
+    }
+
     apiCall('/api/backup/restore', {
             method: 'POST',
             body: JSON.stringify({
@@ -1332,7 +1537,21 @@ function confirmImport() {
     }
 
     console.log('📊 Importando datos:', importData.length, 'ítems');
-    console.log('📊 Muestra:', importData.slice(0, 3));
+
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        items = importData;
+        movs = [];
+        localStorage.setItem('panol_items', JSON.stringify(items));
+        localStorage.setItem('panol_movs', JSON.stringify(movs));
+        closeImportModal();
+        categoriasExpandidas = {};
+        showToast('✅ ' + items.length + ' ítems importados (local)');
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        updateKPIsLocales();
+        return;
+    }
 
     showLoading(true);
 
@@ -1378,7 +1597,7 @@ function confirmImport() {
 }
 
 // ============================================================
-//  PLANILLA DE TRABAJO - CON CLASIFICACIÓN
+//  PLANILLA DE TRABAJO
 // ============================================================
 
 function cargarPlanillasDesdeServidor() {
@@ -1488,6 +1707,41 @@ function registrarPlanilla() {
 
     showLoading(true);
 
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        const nuevaPlanilla = {
+            id: Date.now(),
+            fecha,
+            tipo,
+            clasificacion,
+            modulo,
+            descripcion,
+            horas,
+            repuesto: repuesto || '',
+            observaciones: observaciones || '',
+            usuario: currentUser.username,
+            tecnico: tecnico,
+            timestamp: new Date().toISOString()
+        };
+        planillas.unshift(nuevaPlanilla);
+        localStorage.setItem('panol_planillas', JSON.stringify(planillas));
+        showLoading(false);
+        showToast('✅ Trabajo registrado correctamente (local)');
+
+        document.getElementById('planillaTipo').value = '';
+        document.getElementById('planillaModulo').value = '';
+        document.getElementById('planillaDescripcion').value = '';
+        document.getElementById('planillaHoras').value = '';
+        document.getElementById('planillaRepuesto').value = '';
+        document.getElementById('planillaObservaciones').value = '';
+        initPlanillaFecha();
+
+        if (currentUser?.rol === 'admin') {
+            cargarOrdenesDesdePlanillas();
+            renderTablaOT();
+        }
+        return;
+    }
+
     apiCall('/api/planillas', {
         method: 'POST',
         body: JSON.stringify({
@@ -1517,7 +1771,6 @@ function registrarPlanilla() {
             document.getElementById('planillaObservaciones').value = '';
             initPlanillaFecha();
 
-            // Actualizar órdenes si es admin
             if (currentUser?.rol === 'admin') {
                 cargarOrdenesDesdePlanillas();
                 renderTablaOT();
@@ -1535,6 +1788,10 @@ function renderPlanillasRecibidas() {
     if (!container) return;
 
     if (currentUser?.rol === 'admin') {
+        if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+            renderPlanillasRecibidasUI(container);
+            return;
+        }
         showLoading(true);
         apiCall('/api/planillas')
             .then(data => {
@@ -1680,6 +1937,14 @@ function eliminarPlanilla(id) {
     }
     if (!confirm('¿Eliminar esta planilla permanentemente?')) return;
 
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+        planillas = planillas.filter(p => p.id !== id);
+        localStorage.setItem('panol_planillas', JSON.stringify(planillas));
+        renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+        showToast('✅ Planilla eliminada (local)');
+        return;
+    }
+
     showLoading(true);
     apiCall(`/api/planillas/${id}`, { method: 'DELETE' })
         .then(() => {
@@ -1802,7 +2067,6 @@ function guardarOTLocal() {
 }
 
 function cargarOrdenesDesdePlanillas() {
-    // Convertir planillas a órdenes
     ordenes = planillas.map(p => ({
         id: p.id || Date.now(),
         fecha: p.fecha || '',
@@ -1823,7 +2087,6 @@ function cargarOrdenesDesdePlanillas() {
 }
 
 function renderTablaOT() {
-    // Cargar desde planillas si es admin
     if (currentUser?.rol === 'admin') {
         cargarOrdenesDesdePlanillas();
     }
@@ -1845,7 +2108,6 @@ function renderTablaOT() {
         return matchSearch && matchClasificacion && matchMaq && matchTec;
     });
 
-    // KPIs
     document.getElementById('totalOT').textContent = filtrados.length;
     const horas = filtrados.map(o => parseFloat(o.horas) || 0);
     const sumHoras = horas.reduce((a, b) => a + b, 0);
@@ -1854,7 +2116,6 @@ function renderTablaOT() {
     const repuestos = filtrados.filter(o => o.repuestos && o.repuestos.trim()).length;
     document.getElementById('totalRepuestosOT').textContent = repuestos;
 
-    // Actualizar filtros
     const maquinas = [...new Set(ordenes.map(o => o.maquina).filter(Boolean))].sort();
     const tecnicos = [...new Set(ordenes.map(o => o.tecnico).filter(Boolean))].sort();
 
@@ -1946,7 +2207,6 @@ function limpiarFiltrosOT() {
 function cargarSelectoresOT() {
     const selMaq = document.getElementById('otMaquina');
     const selTec = document.getElementById('otTecnico');
-    const selMod = document.getElementById('otModulo');
 
     if (selMaq) {
         selMaq.innerHTML = '<option value="">Seleccionar máquina</option>' +
@@ -1956,14 +2216,9 @@ function cargarSelectoresOT() {
         selTec.innerHTML = '<option value="">Seleccionar técnico</option>' +
             tecnicosList.map(t => `<option value="${t}">${t}</option>`).join('');
     }
-    if (selMod) {
-        selMod.innerHTML = '<option value="">Seleccionar módulo</option>' +
-            modulosList.map(m => `<option value="${m}">${m}</option>`).join('');
-    }
 }
 
 function abrirFormularioOT() {
-    // Solo admin puede crear OT desde aquí
     if (currentUser?.rol !== 'admin') {
         showToast('Solo administradores pueden crear órdenes', false);
         return;
@@ -2202,54 +2457,45 @@ function confirmarImportacionOT() {
 //  INICIO - Verificar token guardado
 // ============================================================
 const savedToken = localStorage.getItem('panol_token');
-if (savedToken) {
-    token = savedToken;
-    // Intentar obtener usuario desde localStorage o API
-    const userData = JSON.parse(localStorage.getItem('panol_user') || 'null');
-    if (userData) {
-        currentUser = userData;
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('appScreen').style.display = 'flex';
-        document.getElementById('userNameDisplay').textContent = '👤 ' + userData.username;
-        const rolSpan = document.getElementById('userRolDisplay');
-        rolSpan.textContent = userData.rol;
-        rolSpan.className = 'rol ' + (userData.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
+const savedUser = localStorage.getItem('panol_user');
 
-        if (userData.rol === 'admin') {
-            document.getElementById('adminTabBtn').style.display = 'block';
-            document.getElementById('planillasRecibidasBtn').style.display = 'block';
-            document.getElementById('ordenesBtn').style.display = 'block';
-        } else {
-            document.getElementById('adminTabBtn').style.display = 'none';
-            document.getElementById('planillasRecibidasBtn').style.display = 'none';
-            document.getElementById('ordenesBtn').style.display = 'none';
+if (savedToken && savedUser) {
+    try {
+        const userData = JSON.parse(savedUser);
+        if (USUARIOS_LOCALES[userData.username]) {
+            // Usuario local
+            currentUser = {
+                username: userData.username,
+                rol: userData.rol,
+                token: savedToken
+            };
+            token = savedToken;
+
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appScreen').style.display = 'flex';
+            document.getElementById('userNameDisplay').textContent = '👤 ' + userData.username;
+            const rolSpan = document.getElementById('userRolDisplay');
+            rolSpan.textContent = userData.rol;
+            rolSpan.className = 'rol ' + (userData.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
+
+            if (userData.rol === 'admin') {
+                document.getElementById('adminTabBtn').style.display = 'block';
+                document.getElementById('planillasRecibidasBtn').style.display = 'block';
+                document.getElementById('ordenesBtn').style.display = 'block';
+            } else {
+                document.getElementById('adminTabBtn').style.display = 'none';
+                document.getElementById('planillasRecibidasBtn').style.display = 'none';
+                document.getElementById('ordenesBtn').style.display = 'none';
+            }
+
+            cargarDatosLocales();
+            iniciarPing();
+            initPlanillaFecha();
+            initOrdenes();
+            cargarSelectoresOT();
+            showToast('✅ Sesión restaurada');
         }
-
-        loadDataFromServer();
-        iniciarPing();
-        initPlanillaFecha();
-        cargarPlanillasDesdeServidor().then(() => {
-            iniciarPollingPlanillas();
-        });
-        initOrdenes();
-        cargarSelectoresOT();
-    } else {
-        // Si no hay datos de usuario, verificar token con API
-        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
-            .then(res => res.json())
-            .then(data => {
-                if (!data.error) {
-                    // Token válido pero no tenemos datos de usuario
-                    // Redirigir a login
-                    localStorage.removeItem('panol_token');
-                } else {
-                    localStorage.removeItem('panol_token');
-                }
-            })
-            .catch(() => {
-                localStorage.removeItem('panol_token');
-            });
-    }
+    } catch(e) {}
 }
 
 // Enter para login
@@ -2259,14 +2505,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Guardar usuario en localStorage al hacer login
-const originalDoLogin = doLogin;
-doLogin = function() {
-    originalDoLogin();
-    // El usuario se guarda dentro de la función doLogin original
-};
-
-// Inicializar órdenes al cargar
+// Inicializar al cargar
 setTimeout(() => {
     if (document.getElementById('ordenesSection')) {
         initOrdenes();
@@ -2275,6 +2514,5 @@ setTimeout(() => {
 }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
-console.log('🔗 Conectado a:', API_URL);
-console.log('📋 Sistema de Planillas y Órdenes cargado');
 console.log('👥 Usuarios locales: admin/admin123, empleado1/empleado123, empleado2/empleado123');
+console.log('📋 Sistema de Planillas y Órdenes cargado');
