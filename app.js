@@ -2179,7 +2179,7 @@ function renderTablaOT() {
     }
     if (empty) empty.style.display = 'none';
 
-    // ✅ CORRECCIÓN APLICADA AQUÍ
+    // ✅ CORRECCIÓN APLICADA AQUÍ - Formateo seguro de fecha
     tbody.innerHTML = filtrados.map((o) => {
         // Función para formatear fecha de forma segura
         const formatearFecha = (fecha) => {
@@ -2389,7 +2389,7 @@ function exportarOTXLSX() {
 }
 
 // ============================================================
-//  IMPORTAR ÓRDENES DESDE EXCEL
+//  IMPORTAR ÓRDENES DESDE EXCEL - CORREGIDO
 // ============================================================
 let importDataOT = null;
 
@@ -2449,34 +2449,96 @@ function processFileOT(file) {
                 return;
             }
 
+            console.log('📊 Columnas detectadas:', Object.keys(data[0]));
+
             importDataOT = data.map(row => {
-                const id = row['ID'] || row['id'] || row['ID_Tarea'] || row['ID_TAREA'] || Date.now() + Math.random() * 1000;
-                const fecha = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
-                const maquina = row['Máquina'] || row['Maquina'] || row['maquina'] || row['MÁQUINA'] || '';
+                // Buscar ID en múltiples formatos
+                const id = row['ID_Tarea'] || row['ID'] || row['id'] || row['ID_TAREA'] || Date.now() + Math.random() * 1000;
+                
+                // Buscar Fecha - soportar múltiples formatos
+                let fecha = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
+                if (fecha && fecha.includes('/')) {
+                    // Convertir DD/MM/AA o DD/MM/YYYY a YYYY-MM-DD
+                    const partes = fecha.split('/');
+                    if (partes.length === 3) {
+                        let año = partes[2];
+                        if (año.length === 2) {
+                            año = '20' + año; // Asumir siglo 21
+                        }
+                        fecha = `${año}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                    }
+                }
+                
+                // Buscar Máquina
+                const maquina = row['Maquina'] || row['Máquina'] || row['maquina'] || row['MÁQUINA'] || '';
+                
+                // Buscar Técnico
+                const tecnico = row['Tecnico'] || row['Técnico'] || row['tecnico'] || row['TÉCNICO'] || '';
+                
+                // Buscar Falla
                 const falla = row['Falla'] || row['falla'] || row['FALLA'] || '';
-                const clasificacion = row['Clasificación'] || row['Clasificacion'] || row['clasificacion'] || row['Tipo'] || row['tipo'] || 'Orden de Trabajo';
-                const tecnico = row['Técnico'] || row['Tecnico'] || row['tecnico'] || row['TÉCNICO'] || '';
-                const horas = parseFloat(row['Horas'] || row['horas'] || row['HORAS'] || row['Tiempo'] || row['tiempo'] || 0);
+                
+                // Buscar Clasificación - puede estar en 'Tipo de Orden' o 'Clasificación'
+                let clasificacion = row['Clasificación'] || row['Clasificacion'] || row['clasificacion'] || 'Orden de Trabajo';
+                // Si tiene 'Tipo de Orden', usarlo
+                if (row['Tipo de Orden']) {
+                    const tipoOrden = row['Tipo de Orden'];
+                    if (tipoOrden.includes('Preventivo') || tipoOrden.includes('preventivo')) {
+                        clasificacion = 'Preventivo';
+                    } else if (tipoOrden.includes('Correctivo')) {
+                        clasificacion = 'Correctivo';
+                    } else {
+                        clasificacion = tipoOrden;
+                    }
+                }
+                
+                // Buscar Horas - puede estar en 'Tiempo de trabajo' o 'Horas'
+                let horas = 0;
+                if (row['Tiempo de trabajo'] !== undefined && row['Tiempo de trabajo'] !== '') {
+                    horas = parseFloat(row['Tiempo de trabajo']) || 0;
+                } else if (row['Horas'] !== undefined && row['Horas'] !== '') {
+                    horas = parseFloat(row['Horas']) || 0;
+                } else if (row['horas'] !== undefined && row['horas'] !== '') {
+                    horas = parseFloat(row['horas']) || 0;
+                }
+                
+                // Buscar Repuestos
                 const repuestos = row['Repuestos'] || row['repuestos'] || row['REPUESTOS'] || '';
-                const solucion = row['Solución'] || row['Solucion'] || row['solucion'] || '';
-                const operativa = row['Operativa'] || row['operativa'] || 'SI';
+                
+                // Buscar Solución
+                const solucion = row['Solucion'] || row['Solución'] || row['solucion'] || '';
+                
+                // Buscar Operativa (TRUE/FALSE)
+                let operativa = 'SI';
+                const opVal = row['Operativa'] || row['operativa'] || '';
+                if (opVal === 'TRUE' || opVal === true || opVal === 'SI' || opVal === 'si') {
+                    operativa = 'SI';
+                } else if (opVal === 'FALSE' || opVal === false || opVal === 'NO' || opVal === 'no') {
+                    operativa = 'NO';
+                }
+                
+                // Buscar Comentarios
                 const comentarios = row['Comentarios'] || row['comentarios'] || '';
+                
+                // Buscar Módulo
+                const modulo = row['Modulo Intervenido'] || row['Modulo'] || row['modulo'] || '';
 
                 return {
                     id: id,
                     fecha: fecha,
-                    maquina: maquina,
-                    falla: falla,
+                    maquina: maquina || modulo || '',
+                    falla: falla || row['Descripción'] || row['descripcion'] || '',
                     clasificacion: clasificacion,
                     tecnico: tecnico,
                     horas: horas,
                     repuestos: repuestos,
                     solucion: solucion,
                     operativa: operativa,
-                    comentarios: comentarios
+                    comentarios: comentarios || row['Observaciones'] || row['observaciones'] || ''
                 };
             });
 
+            // Filtrar registros vacíos
             importDataOT = importDataOT.filter(o => o.maquina || o.tecnico || o.falla);
 
             if (importDataOT.length === 0) {
@@ -2513,7 +2575,6 @@ function processFileOT(file) {
                 </div>
             `;
 
-            localStorage.setItem('ot_ordenes_v2', JSON.stringify(ordenes));
             showToast('✅ Archivo procesado correctamente. ' + importDataOT.length + ' registros listos para importar.');
 
         } catch (err) {
@@ -2532,31 +2593,43 @@ function confirmarImportacionOT() {
     }
 
     let contador = 0;
+    let errores = 0;
+    
     importDataOT.forEach(o => {
-        const existe = ordenes.find(ord => ord.id == o.id);
-        if (!existe) {
-            ordenes.push({
-                id: o.id || Date.now() + Math.random() * 1000,
-                fecha: o.fecha || new Date().toISOString().split('T')[0],
-                maquina: o.maquina || '',
-                falla: o.falla || '',
-                clasificacion: o.clasificacion || 'Orden de Trabajo',
-                tecnico: o.tecnico || '',
-                horas: o.horas || 0,
-                repuestos: o.repuestos || '',
-                solucion: o.solucion || '',
-                operativa: o.operativa || 'SI',
-                comentarios: o.comentarios || '',
-                _origen: 'importado'
-            });
-            contador++;
+        try {
+            const existe = ordenes.find(ord => ord.id == o.id);
+            if (!existe) {
+                ordenes.push({
+                    id: o.id || Date.now() + Math.random() * 1000,
+                    fecha: o.fecha || new Date().toISOString().split('T')[0],
+                    maquina: o.maquina || '',
+                    falla: o.falla || '',
+                    clasificacion: o.clasificacion || 'Orden de Trabajo',
+                    tecnico: o.tecnico || '',
+                    horas: o.horas || 0,
+                    repuestos: o.repuestos || '',
+                    solucion: o.solucion || '',
+                    operativa: o.operativa || 'SI',
+                    comentarios: o.comentarios || '',
+                    _origen: 'importado'
+                });
+                contador++;
+            }
+        } catch(err) {
+            errores++;
+            console.error('Error al importar registro:', o, err);
         }
     });
 
     guardarOTLocal();
     cerrarImportadorOT();
     renderTablaOT();
-    showToast('✅ ' + contador + ' órdenes importadas correctamente');
+    
+    if (errores > 0) {
+        showToast(`✅ ${contador} órdenes importadas, ⚠️ ${errores} con errores`, false);
+    } else {
+        showToast('✅ ' + contador + ' órdenes importadas correctamente');
+    }
 }
 
 // ============================================================
