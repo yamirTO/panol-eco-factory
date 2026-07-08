@@ -2179,14 +2179,32 @@ function renderTablaOT() {
     }
     if (empty) empty.style.display = 'none';
 
+    // ✅ CORRECCIÓN APLICADA AQUÍ
     tbody.innerHTML = filtrados.map((o) => {
-        let fechaStr = o.fecha || '';
-        if (fechaStr && fechaStr.includes('-')) {
-            const partes = fechaStr.split('-');
-            if (partes.length === 3) {
-                fechaStr = partes[1] + '/' + partes[2] + '/' + partes[0].slice(-2);
+        // Función para formatear fecha de forma segura
+        const formatearFecha = (fecha) => {
+            if (!fecha) return '';
+            
+            // Si es objeto Date
+            if (fecha instanceof Date) {
+                const dia = String(fecha.getDate()).padStart(2, '0');
+                const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                const anio = String(fecha.getFullYear()).slice(-2);
+                return `${dia}/${mes}/${anio}`;
             }
-        }
+            
+            // Si es string
+            const fechaStr = String(fecha);
+            if (fechaStr.includes('-')) {
+                const partes = fechaStr.split('-');
+                if (partes.length === 3) {
+                    return `${partes[1]}/${partes[2]}/${partes[0].slice(-2)}`;
+                }
+            }
+            return fechaStr;
+        };
+        
+        let fechaStr = formatearFecha(o.fecha);
         const esPreventivo = o.clasificacion === 'Preventivo';
         const badgeClass = esPreventivo ? 'badge-info' : 'badge-warning';
         const badgeText = esPreventivo ? '🛠️ Preventivo' : '📋 Orden';
