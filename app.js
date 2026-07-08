@@ -1,13 +1,1464 @@
 // ============================================================
+//  CONFIGURACIÓN - CONECTADO AL SERVIDOR EN RENDER
+// ============================================================
+const API_URL = 'https://panol-eco-factory.onrender.com';
+
+// ============================================================
+//  VARIABLES GLOBALES
+// ============================================================
+let token = null;
+let currentUser = null;
+let items = [];
+let movs = [];
+let currentTab = 'stock';
+let currentTipo = 'SALIDA';
+let importData = null;
+let isCreatingNewItem = false;
+let selectedItemCodigo = null;
+let editingItemCodigo = null;
+let activeKpiFilter = 'todos';
+let pendingRestoreData = null;
+let categoriasExpandidas = {};
+let pingContador = 0;
+let pingInterval = null;
+
+// PLANILLAS
+let planillas = [];
+let planillasInterval = null;
+
+// ÓRDENES DE TRABAJO
+let ordenes = JSON.parse(localStorage.getItem('ot_ordenes_v2')) || [];
+let maquinasList = JSON.parse(localStorage.getItem('ot_maquinas')) || ['Torno CNC-12', 'Fresadora', 'Prensa hidráulica', 'Compresor', 'Cinta transportadora'];
+let tecnicosList = JSON.parse(localStorage.getItem('ot_tecnicos')) || ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez'];
+let modulosList = JSON.parse(localStorage.getItem('ot_modulos')) || ['Cabezal', 'Panel de control', 'Motor', 'Bomba hidráulica', 'Sistema eléctrico'];
+
+// ============================================================
+//  DOM REFERENCIAS
+// ============================================================
+const $ = (id) => document.getElementById(id);
+
+// ============================================================
+//  FUNCIÓN DE FECHA (para mostrar en MM/DD/AA)
+// ============================================================
+function fechaToMMDDAA(fechaStr) {
+    if (!fechaStr) return '';
+    if (fechaStr.includes('-')) {
+        const partes = fechaStr.split('-');
+        if (partes.length === 3) {
+            const año = partes[0].slice(-2);
+            return partes[1] + '/' + partes[2] + '/' + año;
+        }
+    }
+    return fechaStr;
+}
+
+// ============================================================
+//  USUARIOS LOCALES (para pruebas sin servidor)
+// ============================================================
+const USUARIOS_LOCALES = {
+    admin: { password: 'admin123', rol: 'admin' },
+    empleado1: { password: 'empleado123', rol: 'empleado' },
+    empleado2: { password: 'empleado123', rol: 'empleado' }
+};
+
+// ============================================================
+//  AUTENTICACIÓN
+// ============================================================
+function doLogin() {
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value.trim();
+
+    if (!username || !password) {
+        showLoginError('Ingresá usuario y contraseña');
+        return;
+    }
+
+    showLoading(true);
+
+    // Primero intentar con usuarios locales
+    if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
+        showLoading(false);
+        const data = {
+            success: true,
+            token: 'token_' + username + '_' + Date.now(),
+            username: username,
+            rol: USUARIOS_LOCALES[username].rol
+        };
+        token = data.token;
+        currentUser = data;
+        localStorage.setItem('panol_token', token);
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'flex';
+        document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
+        const rolSpan = document.getElementById('userRolDisplay');
+        rolSpan.textContent = data.rol;
+        rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
+
+        if (data.rol === 'admin') {
+            document.getElementById('adminTabBtn').style.display = 'block';
+            document.getElementById('planillasRecibidasBtn').style.display = 'block';
+            document.getElementById('ordenesBtn').style.display = 'block';
+        } else {
+            document.getElementById('adminTabBtn').style.display = 'none';
+            document.getElementById('planillasRecibidasBtn').style.display = 'none';
+            document.getElementById('ordenesBtn').style.display = 'none';
+        }
+
+        loadDataFromServer();
+        iniciarPing();
+        initPlanillaFecha();
+        cargarPlanillasDesdeServidor().then(() => {
+            iniciarPollingPlanillas();
+        });
+        initOrdenes();
+        cargarSelectoresOT();
+        showToast('✅ Bienvenido ' + data.username);
+        return;
+    }
+
+    // Si no es usuario local, intentar con el servidor
+    fetch(`${API_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        })
+        .then(res => res.json())
+        .then(data => {
+            showLoading(false);
+            if (data.error) {
+                showLoginError(data.error);
+                return;
+            }
+            token = data.token;
+            currentUser = data;
+            localStorage.setItem('panol_token', token);
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appScreen').style.display = 'flex';
+            document.getElementById('userNameDisplay').textContent = '👤 ' + data.username;
+            const rolSpan = document.getElementById('userRolDisplay');
+            rolSpan.textContent = data.rol;
+            rolSpan.className = 'rol ' + (data.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
+
+            if (data.rol === 'admin') {
+                document.getElementById('adminTabBtn').style.display = 'block';
+                document.getElementById('planillasRecibidasBtn').style.display = 'block';
+                document.getElementById('ordenesBtn').style.display = 'block';
+            } else {
+                document.getElementById('adminTabBtn').style.display = 'none';
+                document.getElementById('planillasRecibidasBtn').style.display = 'none';
+                document.getElementById('ordenesBtn').style.display = 'none';
+            }
+
+            loadDataFromServer();
+            iniciarPing();
+            initPlanillaFecha();
+            cargarPlanillasDesdeServidor().then(() => {
+                iniciarPollingPlanillas();
+            });
+            initOrdenes();
+            cargarSelectoresOT();
+            showToast('✅ Bienvenido ' + data.username);
+        })
+        .catch(err => {
+            showLoading(false);
+            showLoginError('Error al conectar con el servidor');
+            console.error(err);
+        });
+}
+
+function doLogout() {
+    detenerPollingPlanillas();
+    if (token) {
+        fetch(`${API_URL}/api/logout`, { method: 'POST', headers: { 'Authorization': token } }).catch(() => {});
+    }
+    token = null;
+    currentUser = null;
+    localStorage.removeItem('panol_token');
+    document.getElementById('appScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginError').className = 'login-error';
+    detenerPing();
+}
+
+function showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    el.textContent = msg;
+    el.className = 'login-error show';
+}
+
+function showLoading(show) {
+    document.getElementById('loadingOverlay').className = show ? 'loading-overlay show' : 'loading-overlay';
+}
+
+// ============================================================
+//  MANTENER SERVIDOR DESPIERTO (PING)
+// ============================================================
+function iniciarPing() {
+    setTimeout(hacerPing, 2000);
+    pingInterval = setInterval(hacerPing, 300000);
+}
+
+function detenerPing() {
+    if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+    }
+    document.getElementById('pingStatus').textContent = '⏱ Detenido';
+    document.getElementById('pingStatus').className = 'ping-status';
+}
+
+function hacerPing() {
+    pingContador++;
+    fetch(`${API_URL}/api/items`, {
+        headers: { 'Authorization': token || '' },
+        signal: AbortSignal.timeout(10000)
+    })
+    .then(() => {
+        const statusEl = document.getElementById('pingStatus');
+        statusEl.textContent = `⏱ ${pingContador} ✅`;
+        statusEl.className = 'ping-status active';
+    })
+    .catch(() => {
+        const statusEl = document.getElementById('pingStatus');
+        statusEl.textContent = `⏱ ${pingContador} ⚠️`;
+        statusEl.className = 'ping-status';
+    });
+}
+
+// ============================================================
+//  API HELPER
+// ============================================================
+function apiCall(endpoint, options = {}) {
+    return fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token,
+                ...(options.headers || {})
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                if (data.error === 'Token inválido' || data.error === 'Token no proporcionado') {
+                    doLogout();
+                    showToast('Sesión expirada', false);
+                }
+                throw new Error(data.error);
+            }
+            return data;
+        });
+}
+
+// ============================================================
+//  CARGAR DATOS DEL SERVIDOR
+// ============================================================
+function loadDataFromServer() {
+    showLoading(true);
+    Promise.all([
+        apiCall('/api/items'),
+        apiCall('/api/movimientos'),
+        apiCall('/api/stats')
+    ])
+    .then(([itemsData, movsData, statsData]) => {
+        items = itemsData;
+        movs = movsData;
+        showLoading(false);
+        updateKPIsFromStats(statsData);
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        document.getElementById('syncStatus').textContent = '●';
+        document.getElementById('syncStatus').className = 'sync-status';
+        showToast('✅ Datos cargados');
+    })
+    .catch(err => {
+        showLoading(false);
+        document.getElementById('syncStatus').textContent = '⚠️';
+        document.getElementById('syncStatus').className = 'sync-status error';
+        showToast('❌ Error: ' + err.message, false);
+    });
+}
+
+function updateKPIsFromStats(stats) {
+    document.getElementById('kpiTotal').textContent = stats.totalItems || 0;
+    document.getElementById('kpiSinStock').textContent = stats.sinStock || 0;
+    document.getElementById('kpiCriticos').textContent = stats.criticos || 0;
+    document.getElementById('kpiCategorias').textContent = stats.categorias || 0;
+    document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
+}
+
+// ============================================================
+//  FUNCIONES DE STOCK
+// ============================================================
+function stockActual(item) {
+    return movs.reduce((acc, m) => {
+        if (m.codigo !== item.codigo) return acc;
+        if (m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN') return acc + Number(m.cantidad);
+        if (m.tipo === 'SALIDA') return acc - Number(m.cantidad);
+        return acc;
+    }, item.inicial || 0);
+}
+
+function esCritico(item) {
+    return item.critico && item.critico.toUpperCase() === 'SI';
+}
+
+function estadoItem(actual, minimo, item) {
+    if (actual <= 0) return { label: '⛔ Sin stock', color: '#C62828', bg: '#FFCDD2' };
+    if (esCritico(item)) return { label: '🔴 Crítico', color: '#C62828', bg: '#FFEBEE' };
+    if (actual < minimo) return { label: '🟡 Reponer', color: '#E65100', bg: '#FFF8E1' };
+    return { label: '🟢 OK', color: '#2E7D32', bg: '#E8F5E9' };
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tab = this.dataset.tab;
+            switchTab(tab);
+        });
+    });
+
+    document.querySelectorAll('.kpi-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const filter = this.dataset.filter;
+            if (filter) filterByKPI(filter);
+            const tab = this.dataset.tab;
+            if (tab) switchTab(tab);
+        });
+    });
+});
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    const section = document.getElementById(tab + 'Section');
+    if (section) section.classList.add('active');
+
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${tab}"]`)?.classList.add('active');
+
+    if (tab === 'stock') renderStock();
+    if (tab === 'historial') renderHistory();
+    if (tab === 'movimiento') updateNewItemVisibility();
+    if (tab === 'editar') resetEditForm();
+    if (tab === 'categorias') renderCategorias();
+    if (tab === 'planilla') {
+        initPlanillaFecha();
+        cargarPlanillasDesdeServidor();
+    }
+    if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') {
+        renderPlanillasRecibidas();
+        if (!planillasInterval) iniciarPollingPlanillas();
+    }
+    if (tab === 'ordenes' && currentUser?.rol === 'admin') {
+        initOrdenes();
+        cargarSelectoresOT();
+        renderTablaOT();
+    }
+}
+
+function showToast(msg, success = true) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast show ' + (success ? 'toast-success' : 'toast-error');
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+function filterByKPI(filter) {
+    activeKpiFilter = filter;
+    switchTab('stock');
+    const searchInput = document.querySelector('.search-input');
+    const categorySelect = document.querySelector('.category-select');
+    if (searchInput) searchInput.value = '';
+    if (categorySelect) categorySelect.value = 'Todas';
+    renderStock();
+}
+
+// ============================================================
+//  RENDER STOCK
+// ============================================================
+function renderStock() {
+    const searchInput = document.querySelector('.search-input');
+    const catSelect = document.querySelector('.category-select');
+    const q = searchInput?.value.toLowerCase() || '';
+    const cat = catSelect?.value || 'Todas';
+
+    const categorias = ['Todas', ...new Set(items.map(i => i.categoria || 'Sin categoría'))];
+    if (catSelect) {
+        catSelect.innerHTML = categorias.map(c => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('');
+    }
+
+    let filtrados = items.filter(i => {
+        const matchQ = !q || i.codigo.toLowerCase().includes(q) || i.descripcion.toLowerCase().includes(q);
+        const matchC = cat === 'Todas' || (i.categoria || 'Sin categoría') === cat;
+        return matchQ && matchC;
+    });
+
+    if (activeKpiFilter === 'sinstock') {
+        filtrados = filtrados.filter(i => stockActual(i) <= 0);
+    } else if (activeKpiFilter === 'criticos') {
+        filtrados = filtrados.filter(i => esCritico(i));
+    }
+
+    const tableBody = document.getElementById('stockTable');
+    tableBody.innerHTML = '';
+
+    if (filtrados.length === 0) {
+        tableBody.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Sin resultados</div></div>';
+        return;
+    }
+
+    tableBody.innerHTML = filtrados.map((item) => {
+        const actual = stockActual(item);
+        const e = estadoItem(actual, item.minimo, item);
+        return `<div class="table-row" onclick="editItemFromTable('${item.codigo}')">
+            <span class="code-cell">${item.codigo}</span>
+            <span class="desc-cell">${item.descripcion}</span>
+            <span class="cat-cell">${item.categoria || '—'}</span>
+            <span class="num-cell">${item.minimo}</span>
+            <span class="stock-cell" style="color:${actual <= item.minimo ? e.color : 'var(--texto)'}">${actual}</span>
+            <span class="num-cell">${item.maximo}</span>
+            <span style="font-size:10px;color:var(--sub);">${item.ubicacion || '—'}</span>
+            <span style="text-align:center;"><span class="badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;">${e.label}</span></span>
+        </div>`;
+    }).join('');
+}
+
+function filterStock() {
+    activeKpiFilter = 'todos';
+    renderStock();
+}
+
+function editItemFromTable(codigo) {
+    switchTab('editar');
+    loadItemForEdit(codigo);
+}
+
+// ============================================================
+//  EDITAR (solo admin)
+// ============================================================
+function searchItemToEdit() {
+    const val = document.getElementById('editSearchInput').value.trim().toUpperCase();
+    const suggestions = document.getElementById('editSuggestions');
+    if (!val) { suggestions.classList.remove('show'); return; }
+    if (val.length >= 2) {
+        const results = items.filter(i =>
+            i.codigo.toLowerCase().includes(val.toLowerCase()) ||
+            i.descripcion.toLowerCase().includes(val.toLowerCase())
+        ).slice(0, 8);
+        if (results.length > 0) {
+            suggestions.innerHTML = results.map(s =>
+                `<div class="suggestion-item" onclick="loadItemForEdit('${s.codigo}')"><span><strong style="color:var(--verde);">${s.codigo}</strong> ${s.descripcion}</span></div>`
+            ).join('');
+            suggestions.classList.add('show');
+        } else {
+            suggestions.classList.remove('show');
+        }
+    } else {
+        suggestions.classList.remove('show');
+    }
+}
+
+function loadItemForEdit(codigo) {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden editar', false);
+        return;
+    }
+    const item = items.find(i => i.codigo === codigo);
+    if (!item) return;
+
+    editingItemCodigo = codigo;
+    document.getElementById('editSearchInput').value = item.codigo + ' - ' + item.descripcion;
+    document.getElementById('editSuggestions').classList.remove('show');
+    document.getElementById('editItemName').textContent = item.descripcion;
+    document.getElementById('editItemStock').textContent = stockActual(item);
+    document.getElementById('editItemUnit').textContent = item.unidad || 'unidades';
+    document.getElementById('editCodigo').value = item.codigo;
+    document.getElementById('editDescripcion').value = item.descripcion;
+    document.getElementById('editCategoria').value = item.categoria || '';
+    document.getElementById('editUnidad').value = item.unidad || 'Unidad';
+    document.getElementById('editInicial').value = item.inicial;
+    document.getElementById('editMinimo').value = item.minimo;
+    document.getElementById('editMaximo').value = item.maximo;
+    document.getElementById('editUbicacion').value = item.ubicacion || '';
+    document.getElementById('editPlanta').value = item.planta || '';
+    document.getElementById('editCritico').value = item.critico || 'NO';
+    document.getElementById('editObs').value = item.obs || '';
+    document.getElementById('editFormContainer').style.display = 'block';
+}
+
+function saveEdit() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden editar', false);
+        return;
+    }
+    if (!editingItemCodigo) {
+        showToast('Seleccioná un ítem para editar', false);
+        return;
+    }
+
+    const newCodigo = document.getElementById('editCodigo').value.trim();
+    const newDescripcion = document.getElementById('editDescripcion').value.trim();
+    if (!newCodigo || !newDescripcion) {
+        showToast('Código y descripción son obligatorios', false);
+        return;
+    }
+
+    if (newCodigo !== editingItemCodigo && items.find(i => i.codigo === newCodigo)) {
+        showToast('El código ' + newCodigo + ' ya existe', false);
+        return;
+    }
+
+    let criticoVal = document.getElementById('editCritico').value.trim().toUpperCase();
+    if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
+
+    const updatedItem = {
+        codigo: newCodigo,
+        descripcion: newDescripcion,
+        categoria: document.getElementById('editCategoria').value.trim() || 'Sin categoría',
+        unidad: document.getElementById('editUnidad').value,
+        inicial: Number(document.getElementById('editInicial').value) || 0,
+        minimo: Number(document.getElementById('editMinimo').value) || 1,
+        maximo: Number(document.getElementById('editMaximo').value) || 10,
+        ubicacion: document.getElementById('editUbicacion').value.trim(),
+        planta: document.getElementById('editPlanta').value.trim(),
+        critico: criticoVal,
+        obs: document.getElementById('editObs').value.trim()
+    };
+
+    showLoading(true);
+    apiCall(`/api/items/${editingItemCodigo}`, {
+            method: 'PUT',
+            body: JSON.stringify(updatedItem)
+        })
+        .then(() => {
+            const idx = items.findIndex(i => i.codigo === editingItemCodigo);
+            if (idx !== -1) items[idx] = updatedItem;
+            editingItemCodigo = newCodigo;
+            showLoading(false);
+            showToast('✅ Ítem actualizado correctamente');
+            loadItemForEdit(newCodigo);
+            renderStock();
+            renderCategorias();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+function cancelEdit() {
+    editingItemCodigo = null;
+    document.getElementById('editSearchInput').value = '';
+    document.getElementById('editSuggestions').classList.remove('show');
+    document.getElementById('editFormContainer').style.display = 'none';
+}
+
+function resetEditForm() {
+    cancelEdit();
+}
+
+// ============================================================
+//  MOVIMIENTOS
+// ============================================================
+function setTipo(tipo, btn) {
+    currentTipo = tipo;
+    document.querySelectorAll('.type-btn').forEach(b => b.className = 'type-btn');
+    let activeClass = tipo === 'SALIDA' ? 'active-salida' :
+        (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') ? 'active-entrada' : 'active-ajuste';
+    btn.classList.add(activeClass);
+    document.getElementById('submitBtn').textContent = 'Registrar ' + tipo + ' →';
+    document.getElementById('submitBtn').style.background = tipo === 'SALIDA' ? 'var(--rojo)' :
+        (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') ? 'var(--verdeM)' : 'var(--gris)';
+    updateNewItemVisibility();
+    if (tipo !== 'ENTRADA') hideNewItemForm();
+}
+
+function updateNewItemVisibility() {
+    document.getElementById('toggleNewItem').style.display = (currentTipo === 'ENTRADA' && currentTab === 'movimiento') ? 'flex' : 'none';
+}
+
+function toggleNewItemForm() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden crear nuevos ítems', false);
+        return;
+    }
+    isCreatingNewItem = !isCreatingNewItem;
+    const form = document.getElementById('newItemForm');
+    const codigoGroup = document.getElementById('codigoExistenteGroup');
+    const itemInfo = document.getElementById('itemInfo');
+    const toggleIcon = document.getElementById('toggleNewItemIcon');
+    const toggleText = document.getElementById('toggleNewItemText');
+    if (isCreatingNewItem) {
+        form.classList.add('show');
+        codigoGroup.style.opacity = '0.5';
+        codigoGroup.style.pointerEvents = 'none';
+        itemInfo.classList.remove('show');
+        document.getElementById('suggestions').classList.remove('show');
+        toggleIcon.textContent = '➖';
+        toggleText.textContent = 'Seleccionar ítem existente';
+        selectedItemCodigo = null;
+        document.getElementById('codigoInput').value = '';
+    } else {
+        hideNewItemForm();
+    }
+}
+
+function hideNewItemForm() {
+    isCreatingNewItem = false;
+    document.getElementById('newItemForm').classList.remove('show');
+    document.getElementById('codigoExistenteGroup').style.opacity = '1';
+    document.getElementById('codigoExistenteGroup').style.pointerEvents = 'auto';
+    document.getElementById('toggleNewItemIcon').textContent = '➕';
+    document.getElementById('toggleNewItemText').textContent = 'Crear nuevo ítem';
+    ['newCodigo', 'newDescripcion', 'newCategoria', 'newUbicacion', 'newPlanta', 'newCritico'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const newInicial = document.getElementById('newInicial');
+    const newMinimo = document.getElementById('newMinimo');
+    const newMaximo = document.getElementById('newMaximo');
+    if (newInicial) newInicial.value = '0';
+    if (newMinimo) newMinimo.value = '1';
+    if (newMaximo) newMaximo.value = '10';
+}
+
+function searchItem() {
+    if (isCreatingNewItem) return;
+    const val = document.getElementById('codigoInput').value.trim().toUpperCase();
+    const suggestions = document.getElementById('suggestions');
+    const itemInfo = document.getElementById('itemInfo');
+    if (!val) {
+        suggestions.classList.remove('show');
+        itemInfo.classList.remove('show');
+        selectedItemCodigo = null;
+        return;
+    }
+    const itemExacto = items.find(i => i.codigo === val);
+    if (itemExacto) {
+        suggestions.classList.remove('show');
+        mostrarInfoItem(itemExacto);
+        selectedItemCodigo = itemExacto.codigo;
+    } else if (val.length >= 2) {
+        const results = items.filter(i =>
+            i.codigo.toLowerCase().includes(val.toLowerCase()) ||
+            i.descripcion.toLowerCase().includes(val.toLowerCase())
+        ).slice(0, 6);
+        if (results.length > 0) {
+            suggestions.innerHTML = results.map(s =>
+                `<div class="suggestion-item" onclick="selectItem('${s.codigo}')"><span><strong style="color:var(--verde);">${s.codigo}</strong> ${s.descripcion}</span><span>Stock: ${stockActual(s)}</span></div>`
+            ).join('');
+            if (currentTipo === 'ENTRADA' && currentUser?.rol === 'admin') {
+                suggestions.innerHTML += `<div class="suggestion-item new-item" onclick="toggleNewItemForm();document.getElementById('newCodigo').value='${val}';document.getElementById('suggestions').classList.remove('show');"><span>🆕 Crear: ${val}</span></div>`;
+            }
+            suggestions.classList.add('show');
+            itemInfo.classList.remove('show');
+            selectedItemCodigo = null;
+        } else {
+            suggestions.classList.remove('show');
+            itemInfo.classList.remove('show');
+            if (currentTipo === 'ENTRADA' && val.length >= 2 && currentUser?.rol === 'admin') {
+                suggestions.innerHTML = `<div class="suggestion-item new-item" onclick="toggleNewItemForm();document.getElementById('newCodigo').value='${val}';document.getElementById('suggestions').classList.remove('show');"><span>🆕 Crear: ${val}</span></div>`;
+                suggestions.classList.add('show');
+            }
+        }
+    }
+}
+
+function mostrarInfoItem(item) {
+    document.getElementById('itemInfoDesc').textContent = item.descripcion;
+    document.getElementById('itemInfoDetails').textContent = (item.categoria || '') + (item.ubicacion ? ' · ' + item.ubicacion : '') + (item.planta ? ' · ' + item.planta : '') + ' · Crítico: ' + (item.critico || 'NO');
+    document.getElementById('itemInfoStock').textContent = stockActual(item);
+    document.getElementById('itemInfoUnit').textContent = (item.unidad || 'unidades') + ' actuales';
+    document.getElementById('itemInfo').classList.add('show');
+}
+
+function selectItem(codigo) {
+    document.getElementById('codigoInput').value = codigo;
+    document.getElementById('suggestions').classList.remove('show');
+    const item = items.find(i => i.codigo === codigo);
+    if (item) {
+        mostrarInfoItem(item);
+        selectedItemCodigo = codigo;
+        hideNewItemForm();
+    }
+    document.getElementById('cantidadInput').focus();
+}
+
+function clearItemSelection() {
+    document.getElementById('codigoInput').value = '';
+    document.getElementById('itemInfo').classList.remove('show');
+    document.getElementById('suggestions').classList.remove('show');
+    selectedItemCodigo = null;
+    hideNewItemForm();
+    document.getElementById('codigoInput').focus();
+}
+
+function registrarMovimiento() {
+    const cantidad = Number(document.getElementById('cantidadInput').value);
+    const responsable = document.getElementById('responsableInput').value.trim() || currentUser?.username || '';
+    const ot = document.getElementById('otInput').value.trim();
+    const sector = document.getElementById('sectorInput').value.trim();
+    const obs = document.getElementById('obsInput').value.trim();
+
+    if (!cantidad || cantidad <= 0) {
+        showToast('Ingresá una cantidad válida', false);
+        return;
+    }
+
+    let codigo, descripcion, categoria, unidad, minimo, maximo, ubicacion, planta, critico;
+
+    if (isCreatingNewItem) {
+        if (currentUser?.rol !== 'admin') {
+            showToast('Solo administradores pueden crear nuevos ítems', false);
+            return;
+        }
+        const newCodigo = document.getElementById('newCodigo').value.trim();
+        const newDescripcion = document.getElementById('newDescripcion').value.trim();
+        if (!newCodigo) { showToast('Ingresá el código', false); return; }
+        if (!newDescripcion) { showToast('Ingresá la descripción', false); return; }
+        if (items.find(i => i.codigo === newCodigo)) { showToast('El código ya existe', false); return; }
+
+        codigo = newCodigo;
+        descripcion = newDescripcion;
+        categoria = document.getElementById('newCategoria').value.trim() || 'Sin categoría';
+        unidad = document.getElementById('newUnidad').value;
+        minimo = Number(document.getElementById('newMinimo').value) || 1;
+        maximo = Number(document.getElementById('newMaximo').value) || 10;
+        ubicacion = document.getElementById('newUbicacion').value.trim();
+        planta = document.getElementById('newPlanta').value.trim() || 'Planta 1';
+        critico = document.getElementById('newCritico').value.trim().toUpperCase() || 'NO';
+        if (!['SI', 'NO'].includes(critico)) critico = 'NO';
+
+        showLoading(true);
+        apiCall('/api/items', {
+                method: 'POST',
+                body: JSON.stringify({
+                    codigo, descripcion, categoria, unidad,
+                    inicial: Number(document.getElementById('newInicial').value) || 0,
+                    minimo, maximo, ubicacion, planta, critico, obs: ''
+                })
+            })
+            .then(() => {
+                return registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs,
+                    categoria, unidad, minimo, maximo, ubicacion, planta, critico);
+            })
+            .then(() => {
+                showLoading(false);
+                limpiarFormularioMovimiento();
+                showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+                loadDataFromServer();
+            })
+            .catch(err => {
+                showLoading(false);
+                showToast('❌ Error: ' + err.message, false);
+            });
+        return;
+    }
+
+    if (!selectedItemCodigo) {
+        const val = document.getElementById('codigoInput').value.trim();
+        const item = items.find(i => i.codigo === val);
+        if (!item) { showToast('Seleccioná un ítem', false); return; }
+        selectedItemCodigo = item.codigo;
+    }
+
+    const item = items.find(i => i.codigo === selectedItemCodigo);
+    if (!item) { showToast('Ítem no encontrado', false); return; }
+    codigo = item.codigo;
+    descripcion = item.descripcion;
+
+    if (currentTipo === 'SALIDA' && cantidad > stockActual(item)) {
+        showToast('Stock insuficiente. Actual: ' + stockActual(item), false);
+        return;
+    }
+
+    showLoading(true);
+    registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs)
+        .then(() => {
+            showLoading(false);
+            limpiarFormularioMovimiento();
+            showToast('✓ ' + currentTipo + ' registrada — ' + descripcion);
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+function registrarMovimientoEnServidor(codigo, descripcion, cantidad, responsable, ot, sector, obs, categoria, unidad, minimo, maximo, ubicacion, planta, critico) {
+    const body = { codigo, descripcion, tipo: currentTipo, cantidad, responsable, ot, sector, obs };
+    if (categoria) body.categoria = categoria;
+    if (unidad) body.unidad = unidad;
+    if (minimo) body.minimo = minimo;
+    if (maximo) body.maximo = maximo;
+    if (ubicacion) body.ubicacion = ubicacion;
+    if (planta) body.planta = planta;
+    if (critico) body.critico = critico;
+
+    return apiCall('/api/movimiento', {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+}
+
+function limpiarFormularioMovimiento() {
+    ['codigoInput', 'cantidadInput', 'otInput', 'obsInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('itemInfo').classList.remove('show');
+    selectedItemCodigo = null;
+    hideNewItemForm();
+}
+
+// ============================================================
+//  RENDER HISTORY
+// ============================================================
+function renderHistory() {
+    const container = document.getElementById('historyList');
+    if (!movs.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Sin movimientos</div></div>`;
+        return;
+    }
+    container.innerHTML = movs.slice(0, 100).map(m => {
+        const isEntrada = m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN';
+        return `<div class="history-card" style="border-left:4px solid ${isEntrada?'var(--verdeM)':m.tipo==='SALIDA'?'var(--rojo)':'var(--gris)'};">
+            <span class="history-date">${m.fecha}</span>
+            <span class="history-type" style="color:${isEntrada?'var(--verdeM)':'var(--rojo)'};">${m.tipo}</span>
+            <div><div class="history-desc">${m.descripcion}</div></div>
+            <span class="history-qty" style="color:${m.tipo==='SALIDA'?'var(--rojo)':'var(--verdeM)'};">${m.tipo==='SALIDA'?'-':'+'}${m.cantidad}</span>
+        </div>`;
+    }).join('');
+}
+
+// ============================================================
+//  RENDER CATEGORÍAS
+// ============================================================
+function renderCategorias() {
+    const container = document.getElementById('categoriasList');
+    const categorias = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].sort();
+
+    if (!categorias.length) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">Sin categorías</div></div>`;
+        return;
+    }
+
+    let html = '';
+    categorias.forEach(cat => {
+        const itemsCat = items.filter(i => (i.categoria || 'Sin categoría') === cat);
+        const isOpen = categoriasExpandidas[cat] || false;
+
+        html += `<div class="categoria-item">
+            <div class="categoria-header" onclick="toggleCategoria('${cat}')">
+                <span class="categoria-toggle ${isOpen ? 'open' : ''}">${isOpen ? '✕' : '+'}</span>
+                <span class="categoria-nombre">${cat}</span>
+                <span class="categoria-cantidad">${itemsCat.length}</span>
+            </div>
+            <div class="categoria-items ${isOpen ? 'open' : ''}">
+                ${itemsCat.map(item => {
+                    const actual = stockActual(item);
+                    const e = estadoItem(actual, item.minimo, item);
+                    return `<div class="categoria-subitem">
+                        <span class="sub-codigo">${item.codigo}</span>
+                        <span class="sub-desc">${item.descripcion}</span>
+                        <span class="sub-stock" style="color:${actual <= item.minimo ? e.color : 'var(--texto)'}">${actual}</span>
+                        <span class="sub-min">Mín: ${item.minimo}</span>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function toggleCategoria(categoria) {
+    categoriasExpandidas[categoria] = !categoriasExpandidas[categoria];
+    renderCategorias();
+}
+
+// ============================================================
+//  ADMIN - PLANTILLA EXCEL
+// ============================================================
+function descargarPlantilla() {
+    const wb = XLSX.utils.book_new();
+    const data = [
+        ['Código', 'Descripción', 'Categoría', 'Unidad', 'Stock Inicial', 'Stock Mínimo', 'Stock Máximo', 'Ubicación', 'Planta', 'Crítico', 'Observaciones'],
+        ['PAN-001', 'Ejemplo de producto', 'EPP', 'Unidad', 10, 5, 20, 'E1-A1', 'Planta 1', 'NO', '']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Ítems');
+
+    ws['!cols'] = [
+        { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 15 },
+        { wch: 15 }, { wch: 10 }, { wch: 30 }
+    ];
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'plantilla_stock_panol.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+    showToast('✅ Plantilla descargada');
+}
+
+function exportarDatos() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden exportar', false);
+        return;
+    }
+    downloadBackup();
+}
+
+// ============================================================
+//  BACKUP
+// ============================================================
+async function downloadBackup() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden descargar backups', false);
+        return;
+    }
+
+    showLoading(true);
+    try {
+        const data = await apiCall('/api/backup');
+        showLoading(false);
+
+        const wb = XLSX.utils.book_new();
+
+        const itemsData = data.items.map(item => ({
+            'Código': item.codigo,
+            'Descripción': item.descripcion,
+            'Categoría': item.categoria || '',
+            'Unidad': item.unidad || 'Unidad',
+            'Stock Inicial': item.inicial || 0,
+            'Stock Mínimo': item.minimo || 0,
+            'Stock Máximo': item.maximo || 0,
+            'Ubicación': item.ubicacion || '',
+            'Planta': item.planta || '',
+            'Crítico': item.critico || 'NO',
+            'Observaciones': item.obs || ''
+        }));
+
+        const wsItems = XLSX.utils.json_to_sheet(itemsData);
+        XLSX.utils.book_append_sheet(wb, wsItems, 'Ítems');
+
+        const movsData = data.movimientos.map(m => ({
+            'Fecha': m.fecha || '',
+            'Hora': m.hora || '',
+            'Tipo': m.tipo || '',
+            'Código': m.codigo || '',
+            'Descripción': m.descripcion || '',
+            'Cantidad': m.cantidad || 0,
+            'Responsable': m.responsable || '',
+            'OT/Referencia': m.ot || '',
+            'Sector/Destino': m.sector || '',
+            'Observaciones': m.obs || ''
+        }));
+
+        const wsMovs = XLSX.utils.json_to_sheet(movsData);
+        XLSX.utils.book_append_sheet(wb, wsMovs, 'Movimientos');
+
+        wsItems['!cols'] = [
+            { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
+            { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 15 },
+            { wch: 15 }, { wch: 10 }, { wch: 30 }
+        ];
+        wsMovs['!cols'] = [
+            { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 15 },
+            { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 18 },
+            { wch: 18 }, { wch: 30 }
+        ];
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: 'backup_pañol.xlsx',
+                    types: [{
+                        description: 'Excel Workbook',
+                        accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                showToast('✅ Backup guardado correctamente');
+                return;
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    showToast('⏹️ Descarga cancelada');
+                    return;
+                }
+                console.log('Fallback al método tradicional:', err);
+            }
+        }
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'backup_pañol.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
+        showToast('✅ Backup descargado');
+
+    } catch (err) {
+        showLoading(false);
+        showToast('❌ Error: ' + err.message, false);
+    }
+}
+
+function openBackupModal() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores', false);
+        return;
+    }
+    document.getElementById('backupModal').classList.add('show');
+    document.getElementById('restoreInfo').style.display = 'none';
+}
+
+function closeBackupModal() {
+    document.getElementById('backupModal').classList.remove('show');
+}
+
+function restoreBackup(event) {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden restaurar backups', false);
+        return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+
+            const wsItems = wb.Sheets['Ítems'];
+            if (!wsItems) throw new Error('No se encontró la hoja "Ítems"');
+            const itemsData = XLSX.utils.sheet_to_json(wsItems);
+
+            const wsMovs = wb.Sheets['Movimientos'];
+            let movsData = [];
+            if (wsMovs) {
+                movsData = XLSX.utils.sheet_to_json(wsMovs);
+            }
+
+            if (!itemsData || itemsData.length === 0) {
+                throw new Error('No se encontraron ítems');
+            }
+
+            const restoredItems = itemsData.map(row => ({
+                codigo: String(row['Código'] || '').trim(),
+                descripcion: String(row['Descripción'] || '').trim(),
+                categoria: String(row['Categoría'] || 'Sin categoría').trim() || 'Sin categoría',
+                unidad: String(row['Unidad'] || 'Unidad').trim() || 'Unidad',
+                inicial: Number(row['Stock Inicial']) || 0,
+                minimo: Number(row['Stock Mínimo']) || 0,
+                maximo: Number(row['Stock Máximo']) || 0,
+                ubicacion: String(row['Ubicación'] || '').trim(),
+                planta: String(row['Planta'] || '').trim(),
+                critico: ['SI', 'NO'].includes(String(row['Crítico'] || '').toUpperCase()) ? String(row['Crítico']).toUpperCase() : 'NO',
+                obs: String(row['Observaciones'] || '').trim()
+            }));
+
+            const validItems = restoredItems.filter(item => item.codigo && item.descripcion);
+            if (validItems.length === 0) {
+                throw new Error('No hay ítems válidos');
+            }
+
+            const restoredMovs = movsData.map(row => ({
+                fecha: String(row['Fecha'] || new Date().toLocaleDateString('es-AR')),
+                hora: String(row['Hora'] || new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })),
+                tipo: String(row['Tipo'] || 'ENTRADA'),
+                codigo: String(row['Código'] || '').trim(),
+                descripcion: String(row['Descripción'] || '').trim(),
+                cantidad: Number(row['Cantidad']) || 0,
+                responsable: String(row['Responsable'] || '').trim(),
+                ot: String(row['OT/Referencia'] || '').trim(),
+                sector: String(row['Sector/Destino'] || '').trim(),
+                obs: String(row['Observaciones'] || '').trim(),
+                id: Date.now() + Math.random() * 1000
+            }));
+
+            pendingRestoreData = { items: validItems, movs: restoredMovs };
+
+            const infoDiv = document.getElementById('restoreInfo');
+            infoDiv.style.display = 'block';
+            infoDiv.innerHTML = `
+                <div class="info-box success">
+                    <strong>✅ Backup listo para restaurar</strong><br>
+                    📦 Ítems: ${validItems.length}<br>
+                    📋 Movimientos: ${restoredMovs.length}
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-cancel" onclick="cancelRestore()">Cancelar</button>
+                    <button class="btn btn-primary" onclick="confirmRestore()">✅ Confirmar</button>
+                </div>
+            `;
+        } catch (err) {
+            const infoDiv = document.getElementById('restoreInfo');
+            infoDiv.style.display = 'block';
+            infoDiv.innerHTML = `<div class="info-box error">❌ ${err.message || 'Error al leer el archivo'}</div>`;
+            pendingRestoreData = null;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
+}
+
+function cancelRestore() {
+    document.getElementById('restoreInfo').style.display = 'none';
+    pendingRestoreData = null;
+}
+
+function confirmRestore() {
+    if (!pendingRestoreData) {
+        showToast('No hay datos para restaurar', false);
+        return;
+    }
+
+    showLoading(true);
+    apiCall('/api/backup/restore', {
+            method: 'POST',
+            body: JSON.stringify({
+                items: pendingRestoreData.items,
+                movimientos: pendingRestoreData.movs,
+                usuarios: {}
+            })
+        })
+        .then(() => {
+            showLoading(false);
+            document.getElementById('restoreInfo').style.display = 'none';
+            pendingRestoreData = null;
+            closeBackupModal();
+            showToast('✅ Datos restaurados correctamente');
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+// ============================================================
+//  IMPORT EXCEL
+// ============================================================
+function openImportModal() {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden importar', false);
+        return;
+    }
+    document.getElementById('importModal').classList.add('show');
+    resetImportModal();
+}
+
+function closeImportModal() {
+    document.getElementById('importModal').classList.remove('show');
+}
+
+function resetImportModal() {
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) dropZone.classList.remove('loaded');
+    document.getElementById('dropIcon').textContent = '📊';
+    document.getElementById('dropText').textContent = 'Hacé clic o arrastrá tu archivo Excel';
+    document.getElementById('importInfo').style.display = 'none';
+    document.getElementById('previewContainer').style.display = 'none';
+    document.getElementById('importButtons').style.display = 'none';
+    importData = null;
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    if (event.dataTransfer.files[0]) processFile(event.dataTransfer.files[0]);
+}
+
+function handleFileSelect(event) {
+    if (event.target.files[0]) processFile(event.target.files[0]);
+}
+
+function mapearColumnas(headers) {
+    const map = {};
+    headers.forEach((h, i) => {
+        const n = String(h || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+
+        if (n.includes('cod')) map.codigo = i;
+        if (n.includes('desc')) map.descripcion = i;
+        if (n.includes('stockinicial') || n === 'stockinicial' || n === 'stock_inicial' || n === 'stock inicial') {
+            map.stock = i;
+        }
+        if (n === 'stock' || n === 'stockactual' || n === 'cantidad') map.stock = i;
+        if (n.includes('ubic')) map.ubicacion = i;
+        if (n.includes('plant')) map.planta = i;
+        if (n.includes('min')) map.minimo = i;
+        if (n.includes('max')) map.maximo = i;
+        if (n.includes('obs') || n.includes('nota')) map.obs = i;
+        if (n.includes('cat')) map.categoria = i;
+        if (n.includes('unid')) map.unidad = i;
+        if (n.includes('crit')) map.critico = i;
+    });
+
+    console.log('🔍 Columnas detectadas:', map);
+    return map;
+}
+
+function processFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+            if (rows.length < 2) {
+                showImportError('Archivo vacío');
+                return;
+            }
+
+            let hdrIdx = 0;
+            for (let i = 0; i < Math.min(5, rows.length); i++) {
+                if (rows[i].some(c => typeof c === 'string' && c.trim())) {
+                    hdrIdx = i;
+                    break;
+                }
+            }
+
+            const map = mapearColumnas(rows[hdrIdx]);
+
+            if (map.codigo === undefined || map.descripcion === undefined) {
+                showImportError('Columnas obligatorias: Código y Descripción');
+                return;
+            }
+
+            importData = rows.slice(hdrIdx + 1)
+                .filter(r => r[map.codigo] && String(r[map.codigo]).trim())
+                .map(r => {
+                    let stockValor = Number(r[map.stock] ?? 0);
+                    if (isNaN(stockValor)) stockValor = 0;
+
+                    let criticoVal = String(r[map.critico] || '').trim().toUpperCase();
+                    if (!['SI', 'NO'].includes(criticoVal)) criticoVal = 'NO';
+
+                    return {
+                        codigo: String(r[map.codigo] || '').trim(),
+                        descripcion: String(r[map.descripcion] || '').trim(),
+                        categoria: String(r[map.categoria] || 'Sin categoría').trim() || 'Sin categoría',
+                        unidad: String(r[map.unidad] || 'Unidad').trim() || 'Unidad',
+                        inicial: stockValor,
+                        minimo: Number(r[map.minimo] ?? 0) || 0,
+                        maximo: Number(r[map.maximo] ?? 0) || 0,
+                        ubicacion: String(r[map.ubicacion] || '').trim(),
+                        planta: String(r[map.planta] || '').trim() || 'Planta 1',
+                        critico: criticoVal,
+                        obs: String(r[map.obs] || '').trim()
+                    };
+                });
+
+            if (importData.length === 0) {
+                showImportError('No se encontraron datos válidos');
+                return;
+            }
+
+            document.getElementById('dropZone').classList.add('loaded');
+            document.getElementById('dropIcon').textContent = '✅';
+            document.getElementById('dropText').textContent = file.name + ` (${importData.length} ítems)`;
+
+            document.getElementById('importInfo').style.display = 'block';
+            document.getElementById('importInfo').className = 'info-box success';
+            document.getElementById('importInfo').textContent = `✓ Listo para importar ${importData.length} ítems`;
+
+            const previewContainer = document.getElementById('previewContainer');
+            previewContainer.style.display = 'block';
+            previewContainer.innerHTML = `
+                <div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">
+                    Vista previa (${Math.min(5, importData.length)} de ${importData.length})
+                </div>
+                <table class="preview-table">
+                    <thead><tr>
+                        <th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th>
+                    </tr></thead>
+                    <tbody>
+                        ${importData.slice(0,5).map((r,i) => `
+                            <tr style="background:${i%2===0?'#fff':'var(--bg)'}">
+                                <td style="font-weight:700;color:var(--verde);">${r.codigo}</td>
+                                <td>${r.descripcion}</td>
+                                <td style="text-align:center;font-weight:700;color:${r.inicial > 0 ? 'var(--verdeM)' : 'var(--rojo)'};">${r.inicial}</td>
+                                <td style="text-align:center;">${r.minimo}</td>
+                                <td style="text-align:center;">${r.maximo}</td>
+                                <td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td>
+                            </tr>
+                        `).join('')}
+                        ${importData.length > 5 ? `<tr><td colspan="6" style="text-align:center;color:var(--sub);">... y ${importData.length - 5} más</td></tr>` : ''}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('importButtons').style.display = 'flex';
+
+        } catch (err) {
+            showImportError('Error al leer archivo: ' + err.message);
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function showImportError(msg) {
+    document.getElementById('importInfo').style.display = 'block';
+    document.getElementById('importInfo').className = 'info-box error';
+    document.getElementById('importInfo').textContent = '⚠️ ' + msg;
+}
+
+function confirmImport() {
+    if (!importData || currentUser?.rol !== 'admin') {
+        showToast('No hay datos para importar', false);
+        return;
+    }
+
+    console.log('📊 Importando datos:', importData.length, 'ítems');
+    console.log('📊 Muestra:', importData.slice(0, 3));
+
+    showLoading(true);
+
+    const promises = importData.map(item => {
+        const existe = items.find(i => i.codigo === item.codigo);
+        if (existe) {
+            return apiCall(`/api/items/${item.codigo}`, {
+                method: 'PUT',
+                body: JSON.stringify(item)
+            }).catch(err => {
+                console.log('Error al actualizar:', item.codigo, err.message);
+                return null;
+            });
+        } else {
+            return apiCall('/api/items', {
+                method: 'POST',
+                body: JSON.stringify(item)
+            }).catch(err => {
+                console.log('Error al crear:', item.codigo, err.message);
+                return null;
+            });
+        }
+    });
+
+    Promise.allSettled(promises)
+        .then(results => {
+            showLoading(false);
+            closeImportModal();
+            categoriasExpandidas = {};
+
+            const procesados = results.filter(r => r.status === 'fulfilled' && r.value?.success !== false).length;
+            showToast(`✅ ${procesados} ítems procesados (importados/actualizados)`);
+
+            const conStock = importData.filter(i => i.inicial > 0).length;
+            console.log(`📦 ${conStock} ítems tienen stock inicial > 0`);
+
+            loadDataFromServer();
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error al importar: ' + err.message, false);
+        });
+}
+
+// ============================================================
 //  PLANILLA DE TRABAJO - CON CLASIFICACIÓN
 // ============================================================
+
+function cargarPlanillasDesdeServidor() {
+    if (!token) return Promise.resolve([]);
+
+    return apiCall('/api/planillas')
+        .then(data => {
+            planillas = data || [];
+            guardarPlanillasLocal();
+            return planillas;
+        })
+        .catch(err => {
+            console.log('Error al cargar planillas:', err);
+            return [];
+        });
+}
+
+function guardarPlanillasLocal() {
+    localStorage.setItem('panol_planillas', JSON.stringify(planillas));
+}
+
+function iniciarPollingPlanillas() {
+    detenerPollingPlanillas();
+    if (!token) return;
+
+    planillasInterval = setInterval(() => {
+        if (!document.hidden) {
+            sincronizarPlanillas();
+        }
+    }, 5000);
+}
+
+function detenerPollingPlanillas() {
+    if (planillasInterval) {
+        clearInterval(planillasInterval);
+        planillasInterval = null;
+    }
+}
+
+function sincronizarPlanillas() {
+    if (!token) return;
+
+    apiCall('/api/planillas')
+        .then(data => {
+            const nuevasPlanillas = data || [];
+            if (JSON.stringify(planillas) !== JSON.stringify(nuevasPlanillas)) {
+                planillas = nuevasPlanillas;
+                guardarPlanillasLocal();
+
+                if (currentTab === 'planillasRecibidas' && currentUser?.rol === 'admin') {
+                    renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+                }
+                if (currentTab === 'planilla') {
+                    actualizarContadorPlanillas();
+                }
+            }
+        })
+        .catch(() => {});
+}
+
+function actualizarContadorPlanillas() {
+    const badge = document.querySelector('.tab-btn[data-tab="planillasRecibidas"] .badge-count-tab');
+    if (!badge && currentUser?.rol === 'admin') {
+        const span = document.createElement('span');
+        span.className = 'badge-count-tab';
+        span.style.cssText = `background:var(--rojo);color:#fff;border-radius:50%;padding:0px 6px;font-size:9px;font-weight:700;margin-left:4px;`;
+        document.querySelector('.tab-btn[data-tab="planillasRecibidas"]')?.appendChild(span);
+    }
+    const badgeEl = document.querySelector('.tab-btn[data-tab="planillasRecibidas"] .badge-count-tab');
+    if (badgeEl) {
+        badgeEl.textContent = planillas.length > 0 ? planillas.length : '';
+    }
+}
 
 function registrarPlanilla() {
     if (!currentUser) {
         showToast('Debés iniciar sesión', false);
         return;
     }
-    
+
     const fecha = document.getElementById('planillaFecha').value;
     const tipo = document.getElementById('planillaTipo').value;
     const clasificacion = document.getElementById('planillaClasificacion').value;
@@ -17,7 +1468,7 @@ function registrarPlanilla() {
     const horas = parseFloat(document.getElementById('planillaHoras').value);
     const repuesto = document.getElementById('planillaRepuesto').value.trim();
     const observaciones = document.getElementById('planillaObservaciones').value.trim();
-    
+
     if (!tipo) {
         showToast('Seleccioná un tipo de trabajo', false);
         return;
@@ -34,9 +1485,9 @@ function registrarPlanilla() {
         showToast('Ingresá las horas invertidas', false);
         return;
     }
-    
+
     showLoading(true);
-    
+
     apiCall('/api/planillas', {
         method: 'POST',
         body: JSON.stringify({
@@ -57,7 +1508,7 @@ function registrarPlanilla() {
             planillas.unshift(data.planilla);
             guardarPlanillasLocal();
             showToast('✅ Trabajo registrado correctamente');
-            
+
             document.getElementById('planillaTipo').value = '';
             document.getElementById('planillaModulo').value = '';
             document.getElementById('planillaDescripcion').value = '';
@@ -65,7 +1516,7 @@ function registrarPlanilla() {
             document.getElementById('planillaRepuesto').value = '';
             document.getElementById('planillaObservaciones').value = '';
             initPlanillaFecha();
-            
+
             // Actualizar órdenes si es admin
             if (currentUser?.rol === 'admin') {
                 cargarOrdenesDesdePlanillas();
@@ -79,9 +1530,276 @@ function registrarPlanilla() {
     });
 }
 
+function renderPlanillasRecibidas() {
+    const container = document.getElementById('planillasRecibidasList');
+    if (!container) return;
+
+    if (currentUser?.rol === 'admin') {
+        showLoading(true);
+        apiCall('/api/planillas')
+            .then(data => {
+                planillas = data || [];
+                guardarPlanillasLocal();
+                showLoading(false);
+                renderPlanillasRecibidasUI(container);
+                if (!planillasInterval) iniciarPollingPlanillas();
+            })
+            .catch(err => {
+                showLoading(false);
+                showToast('Error al cargar planillas', false);
+                renderPlanillasRecibidasUI(container);
+            });
+    } else {
+        renderPlanillasRecibidasUI(container);
+    }
+}
+
+function renderPlanillasRecibidasUI(container) {
+    if (!container) return;
+
+    const filtroEmpleado = document.getElementById('planillaFiltroEmpleado');
+    const filtroFecha = document.getElementById('planillaFiltroFecha');
+    const empleados = [...new Set(planillas.map(p => p.usuario))];
+    const empleadoActual = filtroEmpleado?.value || '';
+    const fechaActual = filtroFecha?.value || '';
+
+    if (filtroEmpleado) {
+        filtroEmpleado.innerHTML = `
+            <option value="">Todos los empleados</option>
+            ${empleados.map(e => `<option value="${e}" ${e === empleadoActual ? 'selected' : ''}>${e}</option>`).join('')}
+        `;
+    }
+
+    let planillasFiltradas = [...planillas];
+    if (empleadoActual) planillasFiltradas = planillasFiltradas.filter(p => p.usuario === empleadoActual);
+    if (fechaActual) planillasFiltradas = planillasFiltradas.filter(p => p.fecha === fechaActual);
+
+    const empleadosFiltrados = [...new Set(planillasFiltradas.map(p => p.usuario))];
+
+    if (empleadosFiltrados.length === 0) {
+        container.innerHTML = `
+            <div class="planilla-vacia">
+                <div class="icono">📭</div>
+                <div class="titulo">Sin planillas registradas</div>
+                <p>Los empleados aún no han registrado trabajos.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    empleadosFiltrados.forEach(empleado => {
+        const planillasEmpleado = planillasFiltradas
+            .filter(p => p.usuario === empleado)
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        const planillasPorDia = {};
+        const planillasMostrar = [];
+
+        planillasEmpleado.forEach(p => {
+            const dia = p.fecha;
+            if (!planillasPorDia[dia]) planillasPorDia[dia] = 0;
+            if (planillasPorDia[dia] < 7) {
+                planillasPorDia[dia]++;
+                planillasMostrar.push(p);
+            }
+        });
+
+        const totalPlanillas = planillasEmpleado.length;
+        const totalHoras = planillasEmpleado.reduce((sum, p) => sum + p.horas, 0);
+
+        html += `
+            <div class="empleado-planilla-card">
+                <div class="empleado-planilla-header" onclick="togglePlanillasEmpleado('${empleado}')">
+                    <span class="nombre">👤 ${empleado}</span>
+                    <span class="badge-count">${totalPlanillas} trabajos · ${totalHoras}h</span>
+                    <span class="toggle-icon" id="toggleIcon_${empleado}">+</span>
+                </div>
+                <div class="empleado-planilla-body" id="planillasBody_${empleado}">
+                    ${planillasMostrar.length > 0 ? planillasMostrar.map(p => `
+                        <div class="planilla-item" style="${p.id === planillas[0]?.id ? 'background:var(--verdeC);border-left:3px solid var(--verdeM);' : ''}">
+                            <span class="fecha">${p.fecha}</span>
+                            <span class="tipo ${p.tipo.toLowerCase()}">${p.tipo}</span>
+                            <span class="modulo">${p.modulo}</span>
+                            <span class="horas">${p.horas}h</span>
+                            <span class="repuesto">${p.repuesto || '—'}</span>
+                            <div class="acciones">
+                                <button onclick="verPlanillaDetalle('${p.id}')" title="Ver detalle">👁️</button>
+                                ${currentUser?.rol === 'admin' ? `<button onclick="eliminarPlanilla('${p.id}')" title="Eliminar">🗑️</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="planilla-vacia" style="padding:12px;">
+                            <p>Sin trabajos registrados</p>
+                        </div>
+                    `}
+                    ${totalPlanillas > 7 ? `<div style="text-align:center;font-size:12px;color:var(--sub);padding:8px;">... y ${totalPlanillas - 7} trabajos más (mostrando últimos 7)</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+    actualizarContadorPlanillas();
+}
+
+function togglePlanillasEmpleado(empleado) {
+    const body = document.getElementById(`planillasBody_${empleado}`);
+    const icon = document.getElementById(`toggleIcon_${empleado}`);
+    if (body) {
+        body.classList.toggle('open');
+        if (icon) {
+            icon.textContent = body.classList.contains('open') ? '✕' : '+';
+            icon.classList.toggle('open');
+        }
+    }
+}
+
+function verPlanillaDetalle(id) {
+    const planilla = planillas.find(p => p.id === id);
+    if (!planilla) { showToast('Planilla no encontrada', false); return; }
+
+    const detalle = `📋 PLANILLA DE TRABAJO
+━━━━━━━━━━━━━━━━━━━━━
+📅 Fecha: ${planilla.fecha}
+👤 Técnico: ${planilla.tecnico}
+🔧 Tipo: ${planilla.tipo}
+📋 Clasificación: ${planilla.clasificacion || 'Orden de Trabajo'}
+📌 Módulo: ${planilla.modulo}
+📝 Descripción: ${planilla.descripcion}
+⏱ Horas: ${planilla.horas}
+🔩 Repuesto: ${planilla.repuesto || 'Ninguno'}
+💬 Observaciones: ${planilla.observaciones || '—'}`;
+    alert(detalle);
+}
+
+function eliminarPlanilla(id) {
+    if (currentUser?.rol !== 'admin') {
+        showToast('Solo administradores pueden eliminar', false);
+        return;
+    }
+    if (!confirm('¿Eliminar esta planilla permanentemente?')) return;
+
+    showLoading(true);
+    apiCall(`/api/planillas/${id}`, { method: 'DELETE' })
+        .then(() => {
+            showLoading(false);
+            planillas = planillas.filter(p => p.id !== id);
+            guardarPlanillasLocal();
+            renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+            showToast('✅ Planilla eliminada');
+        })
+        .catch(err => {
+            showLoading(false);
+            showToast('❌ Error: ' + err.message, false);
+        });
+}
+
+function filtrarPlanillasPorEmpleado() {
+    renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+}
+
+function filtrarPlanillasPorFecha() {
+    renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));
+}
+
+function exportarPlanillasExcel() {
+    if (planillas.length === 0) {
+        showToast('No hay planillas para exportar', false);
+        return;
+    }
+
+    const filtroEmpleado = document.getElementById('planillaFiltroEmpleado')?.value || '';
+    const filtroFecha = document.getElementById('planillaFiltroFecha')?.value || '';
+
+    let datosExportar = [...planillas];
+    if (filtroEmpleado) datosExportar = datosExportar.filter(p => p.usuario === filtroEmpleado);
+    if (filtroFecha) datosExportar = datosExportar.filter(p => p.fecha === filtroFecha);
+
+    if (datosExportar.length === 0) {
+        showToast('No hay planillas con los filtros seleccionados', false);
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    const data = datosExportar.map(p => ({
+        'Fecha': p.fecha,
+        'Técnico': p.tecnico,
+        'Tipo': p.tipo,
+        'Clasificación': p.clasificacion || 'Orden de Trabajo',
+        'Módulo': p.modulo,
+        'Descripción': p.descripcion,
+        'Horas': p.horas,
+        'Repuesto': p.repuesto || 'Ninguno',
+        'Observaciones': p.observaciones || '',
+        'Registrado por': p.usuario
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+        { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 20 },
+        { wch: 40 }, { wch: 10 }, { wch: 20 }, { wch: 30 }, { wch: 15 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Planillas');
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+
+    let nombreArchivo = 'planillas_trabajo';
+    if (filtroEmpleado) nombreArchivo += `_${filtroEmpleado}`;
+    if (filtroFecha) nombreArchivo += `_${filtroFecha}`;
+    nombreArchivo += `.xlsx`;
+
+    link.download = nombreArchivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+
+    showToast('✅ Planillas exportadas a Excel');
+}
+
+function initPlanillaFecha() {
+    const fechaInput = document.getElementById('planillaFecha');
+    if (fechaInput) {
+        const hoy = new Date();
+        const year = hoy.getFullYear();
+        const month = String(hoy.getMonth() + 1).padStart(2, '0');
+        const day = String(hoy.getDate()).padStart(2, '0');
+        fechaInput.value = `${year}-${month}-${day}`;
+    }
+
+    const tecnicoInput = document.getElementById('planillaTecnico');
+    if (tecnicoInput && currentUser) {
+        tecnicoInput.value = currentUser.username;
+    }
+}
+
+function actualizarVisibilidadPlanillas() {
+    const planillasRecibidasBtn = document.getElementById('planillasRecibidasBtn');
+    if (planillasRecibidasBtn) {
+        planillasRecibidasBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
+    }
+    const ordenesBtn = document.getElementById('ordenesBtn');
+    if (ordenesBtn) {
+        ordenesBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
+    }
+}
+
 // ============================================================
-//  ÓRDENES DE TRABAJO - DESDE PLANILLAS
+//  ÓRDENES DE TRABAJO
 // ============================================================
+
+function guardarOTLocal() {
+    localStorage.setItem('ot_ordenes_v2', JSON.stringify(ordenes));
+    localStorage.setItem('ot_maquinas', JSON.stringify(maquinasList));
+    localStorage.setItem('ot_tecnicos', JSON.stringify(tecnicosList));
+    localStorage.setItem('ot_modulos', JSON.stringify(modulosList));
+}
 
 function cargarOrdenesDesdePlanillas() {
     // Convertir planillas a órdenes
@@ -100,7 +1818,7 @@ function cargarOrdenesDesdePlanillas() {
         comentarios: p.observaciones || '',
         _origen: 'planilla'
     }));
-    
+
     guardarOTLocal();
 }
 
@@ -109,14 +1827,14 @@ function renderTablaOT() {
     if (currentUser?.rol === 'admin') {
         cargarOrdenesDesdePlanillas();
     }
-    
+
     const search = document.getElementById('searchInputOT')?.value?.toLowerCase() || '';
     const filtroClasificacion = document.getElementById('filterClasificacionOT')?.value || '';
     const filtroMaq = document.getElementById('filterMaquinaOT')?.value || '';
     const filtroTec = document.getElementById('filterTecnicoOT')?.value || '';
-    
+
     let filtrados = ordenes.filter(o => {
-        const matchSearch = !search || 
+        const matchSearch = !search ||
             (o.id || '').toString().toLowerCase().includes(search) ||
             (o.maquina || '').toLowerCase().includes(search) ||
             (o.tecnico || '').toLowerCase().includes(search) ||
@@ -126,7 +1844,7 @@ function renderTablaOT() {
         const matchTec = !filtroTec || o.tecnico === filtroTec;
         return matchSearch && matchClasificacion && matchMaq && matchTec;
     });
-    
+
     // KPIs
     document.getElementById('totalOT').textContent = filtrados.length;
     const horas = filtrados.map(o => parseFloat(o.horas) || 0);
@@ -135,11 +1853,11 @@ function renderTablaOT() {
     document.getElementById('promHorasOT').textContent = prom.toFixed(1);
     const repuestos = filtrados.filter(o => o.repuestos && o.repuestos.trim()).length;
     document.getElementById('totalRepuestosOT').textContent = repuestos;
-    
+
     // Actualizar filtros
     const maquinas = [...new Set(ordenes.map(o => o.maquina).filter(Boolean))].sort();
     const tecnicos = [...new Set(ordenes.map(o => o.tecnico).filter(Boolean))].sort();
-    
+
     const selMaq = document.getElementById('filterMaquinaOT');
     const selTec = document.getElementById('filterTecnicoOT');
     if (selMaq) {
@@ -152,17 +1870,17 @@ function renderTablaOT() {
         selTec.innerHTML = '<option value="">Todos los técnicos</option>' + tecnicos.map(t => `<option value="${t}">${t}</option>`).join('');
         selTec.value = curTec;
     }
-    
+
     const tbody = document.getElementById('tablaBodyOT');
     const empty = document.getElementById('emptyStateOT');
-    
+
     if (filtrados.length === 0) {
         tbody.innerHTML = '';
         if (empty) empty.style.display = 'block';
         return;
     }
     if (empty) empty.style.display = 'none';
-    
+
     tbody.innerHTML = filtrados.map((o) => {
         let fechaStr = o.fecha || '';
         if (fechaStr && fechaStr.includes('-')) {
@@ -174,7 +1892,7 @@ function renderTablaOT() {
         const esPreventivo = o.clasificacion === 'Preventivo';
         const badgeClass = esPreventivo ? 'badge-info' : 'badge-warning';
         const badgeText = esPreventivo ? '🛠️ Preventivo' : '📋 Orden';
-        
+
         return `<tr>
             <td><strong style="color:var(--verde);">${o.id || '—'}</strong></td>
             <td>${fechaStr}</td>
@@ -197,7 +1915,7 @@ function verDetalleOT(id) {
         showToast('Registro no encontrado', false);
         return;
     }
-    
+
     const detalle = `📋 DETALLE DE TRABAJO
 ━━━━━━━━━━━━━━━━━━━━━
 🔢 ID: ${orden.id}
@@ -209,7 +1927,7 @@ function verDetalleOT(id) {
 ⏱ Horas: ${orden.horas || 0}h
 🔩 Repuestos: ${orden.repuestos || '—'}
 💬 Comentarios: ${orden.comentarios || '—'}`;
-    
+
     alert(detalle);
 }
 
@@ -225,13 +1943,32 @@ function limpiarFiltrosOT() {
     renderTablaOT();
 }
 
+function cargarSelectoresOT() {
+    const selMaq = document.getElementById('otMaquina');
+    const selTec = document.getElementById('otTecnico');
+    const selMod = document.getElementById('otModulo');
+
+    if (selMaq) {
+        selMaq.innerHTML = '<option value="">Seleccionar máquina</option>' +
+            maquinasList.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+    if (selTec) {
+        selTec.innerHTML = '<option value="">Seleccionar técnico</option>' +
+            tecnicosList.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+    if (selMod) {
+        selMod.innerHTML = '<option value="">Seleccionar módulo</option>' +
+            modulosList.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+}
+
 function abrirFormularioOT() {
     // Solo admin puede crear OT desde aquí
     if (currentUser?.rol !== 'admin') {
         showToast('Solo administradores pueden crear órdenes', false);
         return;
     }
-    
+
     document.getElementById('modalOT').classList.add('show');
     document.getElementById('editIndexOT').value = -1;
     document.getElementById('modalTitleOT').textContent = '➕ Nueva Orden de Trabajo';
@@ -240,18 +1977,8 @@ function abrirFormularioOT() {
     document.getElementById('otFecha').value = hoy;
     document.getElementById('otId').value = Date.now();
     document.getElementById('otOperativa').value = 'SI';
-    
-    // Cargar selectores
-    const selMaq = document.getElementById('otMaquina');
-    const selTec = document.getElementById('otTecnico');
-    if (selMaq) {
-        selMaq.innerHTML = '<option value="">Seleccionar máquina</option>' + 
-            maquinasList.map(m => `<option value="${m}">${m}</option>`).join('');
-    }
-    if (selTec) {
-        selTec.innerHTML = '<option value="">Seleccionar técnico</option>' + 
-            tecnicosList.map(t => `<option value="${t}">${t}</option>`).join('');
-    }
+
+    cargarSelectoresOT();
 }
 
 function cerrarModalOT() {
@@ -264,7 +1991,7 @@ function guardarOT(e) {
         showToast('Solo administradores pueden crear órdenes', false);
         return;
     }
-    
+
     const id = document.getElementById('otId').value.trim() || Date.now();
     const fecha = document.getElementById('otFecha').value;
     const maquina = document.getElementById('otMaquina').value;
@@ -279,12 +2006,12 @@ function guardarOT(e) {
     const operativa = document.getElementById('otOperativa').value;
     const tipoOrden = document.getElementById('otTipoOrden').value;
     const comentarios = document.getElementById('otComentarios').value.trim();
-    
+
     if (!fecha || !maquina || !tecnico) {
         showToast('Completá los campos obligatorios', false);
         return;
     }
-    
+
     const nuevaOT = {
         id: id,
         fecha: fecha,
@@ -302,7 +2029,7 @@ function guardarOT(e) {
         modulo: modulo || '',
         _origen: 'admin'
     };
-    
+
     ordenes.push(nuevaOT);
     guardarOTLocal();
     cerrarModalOT();
@@ -310,16 +2037,22 @@ function guardarOT(e) {
     showToast('✅ Orden creada correctamente');
 }
 
+function initOrdenes() {
+    if (currentUser?.rol === 'admin') {
+        cargarOrdenesDesdePlanillas();
+        renderTablaOT();
+    }
+}
+
 // ============================================================
 //  EXPORTAR ÓRDENES A EXCEL
 // ============================================================
-
 function exportarOTXLSX() {
     if (ordenes.length === 0) {
         showToast('No hay datos para exportar', false);
         return;
     }
-    
+
     const datos = ordenes.map(o => ({
         'ID': o.id || '',
         'Fecha': o.fecha || '',
@@ -333,12 +2066,12 @@ function exportarOTXLSX() {
         'Operativa': o.operativa || '',
         'Comentarios': o.comentarios || ''
     }));
-    
+
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(datos);
     ws['!cols'] = Object.keys(datos[0]).map(() => ({ wch: 18 }));
     XLSX.utils.book_append_sheet(wb, ws, 'Órdenes');
-    
+
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/octet-stream' });
     const link = document.createElement('a');
@@ -348,14 +2081,13 @@ function exportarOTXLSX() {
     link.click();
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(link.href), 100);
-    
+
     showToast('✅ Órdenes exportadas a Excel');
 }
 
 // ============================================================
 //  IMPORTAR ÓRDENES DESDE EXCEL
 // ============================================================
-
 let importDataOT = null;
 
 function abrirImportadorOT() {
@@ -389,12 +2121,12 @@ function processFileOT(file) {
             const wb = XLSX.read(e.target.result, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const data = XLSX.utils.sheet_to_json(ws);
-            
+
             if (!data || data.length === 0) {
                 showToast('El archivo está vacío', false);
                 return;
             }
-            
+
             importDataOT = data.map(row => ({
                 id: row['ID'] || Date.now() + Math.random() * 1000,
                 fecha: row['Fecha'] || '',
@@ -408,17 +2140,17 @@ function processFileOT(file) {
                 operativa: row['Operativa'] || 'SI',
                 comentarios: row['Comentarios'] || ''
             }));
-            
+
             if (importDataOT.length === 0) {
                 showToast('No se encontraron datos válidos', false);
                 return;
             }
-            
+
             document.getElementById('dropZoneOT').classList.add('loaded');
             document.getElementById('dropIconOT').textContent = '✅';
             document.getElementById('dropTextOT').textContent = file.name + ' (' + importDataOT.length + ' registros)';
             document.getElementById('importButtonsOT').style.display = 'flex';
-            
+
             const preview = document.getElementById('previewContainerOT');
             preview.style.display = 'block';
             preview.innerHTML = `
@@ -455,11 +2187,11 @@ function confirmarImportacionOT() {
         showToast('No hay datos para importar', false);
         return;
     }
-    
+
     importDataOT.forEach(o => {
         ordenes.push(o);
     });
-    
+
     guardarOTLocal();
     cerrarImportadorOT();
     renderTablaOT();
@@ -467,68 +2199,82 @@ function confirmarImportacionOT() {
 }
 
 // ============================================================
-//  INICIALIZACIÓN
+//  INICIO - Verificar token guardado
 // ============================================================
+const savedToken = localStorage.getItem('panol_token');
+if (savedToken) {
+    token = savedToken;
+    // Intentar obtener usuario desde localStorage o API
+    const userData = JSON.parse(localStorage.getItem('panol_user') || 'null');
+    if (userData) {
+        currentUser = userData;
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appScreen').style.display = 'flex';
+        document.getElementById('userNameDisplay').textContent = '👤 ' + userData.username;
+        const rolSpan = document.getElementById('userRolDisplay');
+        rolSpan.textContent = userData.rol;
+        rolSpan.className = 'rol ' + (userData.rol === 'admin' ? 'admin-badge' : 'empleado-badge');
 
-function initPlanillaFecha() {
-    const fechaInput = document.getElementById('planillaFecha');
-    if (fechaInput) {
-        const hoy = new Date();
-        const year = hoy.getFullYear();
-        const month = String(hoy.getMonth() + 1).padStart(2, '0');
-        const day = String(hoy.getDate()).padStart(2, '0');
-        fechaInput.value = `${year}-${month}-${day}`;
-    }
-    
-    const tecnicoInput = document.getElementById('planillaTecnico');
-    if (tecnicoInput && currentUser) {
-        tecnicoInput.value = currentUser.username;
-    }
-}
+        if (userData.rol === 'admin') {
+            document.getElementById('adminTabBtn').style.display = 'block';
+            document.getElementById('planillasRecibidasBtn').style.display = 'block';
+            document.getElementById('ordenesBtn').style.display = 'block';
+        } else {
+            document.getElementById('adminTabBtn').style.display = 'none';
+            document.getElementById('planillasRecibidasBtn').style.display = 'none';
+            document.getElementById('ordenesBtn').style.display = 'none';
+        }
 
-function actualizarVisibilidadPlanillas() {
-    const planillasRecibidasBtn = document.getElementById('planillasRecibidasBtn');
-    if (planillasRecibidasBtn) {
-        planillasRecibidasBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
-    }
-    const ordenesBtn = document.getElementById('ordenesBtn');
-    if (ordenesBtn) {
-        ordenesBtn.style.display = (currentUser?.rol === 'admin') ? 'block' : 'none';
-    }
-}
-
-// Modificar switchTab
-const originalSwitchTab = switchTab;
-switchTab = function(tab) {
-    originalSwitchTab(tab);
-    if (tab === 'ordenes' && currentUser?.rol === 'admin') {
-        renderTablaOT();
-    }
-    if (tab === 'planilla') {
+        loadDataFromServer();
+        iniciarPing();
         initPlanillaFecha();
-    }
-};
-
-// Inicializar órdenes
-function initOrdenes() {
-    if (currentUser?.rol === 'admin') {
-        cargarOrdenesDesdePlanillas();
-        renderTablaOT();
+        cargarPlanillasDesdeServidor().then(() => {
+            iniciarPollingPlanillas();
+        });
+        initOrdenes();
+        cargarSelectoresOT();
+    } else {
+        // Si no hay datos de usuario, verificar token con API
+        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.error) {
+                    // Token válido pero no tenemos datos de usuario
+                    // Redirigir a login
+                    localStorage.removeItem('panol_token');
+                } else {
+                    localStorage.removeItem('panol_token');
+                }
+            })
+            .catch(() => {
+                localStorage.removeItem('panol_token');
+            });
     }
 }
 
-// Agregar al doLogin
+// Enter para login
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') {
+        doLogin();
+    }
+});
+
+// Guardar usuario en localStorage al hacer login
 const originalDoLogin = doLogin;
 doLogin = function() {
     originalDoLogin();
-    setTimeout(() => {
-        actualizarVisibilidadPlanillas();
-        initPlanillaFecha();
-        if (currentUser?.rol === 'admin') {
-            cargarOrdenesDesdePlanillas();
-            renderTablaOT();
-        }
-    }, 500);
+    // El usuario se guarda dentro de la función doLogin original
 };
 
-console.log('📋 Sistema actualizado: Preventivos y Órdenes integrados');
+// Inicializar órdenes al cargar
+setTimeout(() => {
+    if (document.getElementById('ordenesSection')) {
+        initOrdenes();
+        cargarSelectoresOT();
+    }
+}, 500);
+
+console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
+console.log('🔗 Conectado a:', API_URL);
+console.log('📋 Sistema de Planillas y Órdenes cargado');
+console.log('👥 Usuarios locales: admin/admin123, empleado1/empleado123, empleado2/empleado123');
