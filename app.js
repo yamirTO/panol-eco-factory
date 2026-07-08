@@ -336,11 +336,6 @@ function updateKPIsLocales() {
     document.getElementById('kpiMovs').textContent = movs.length;
 }
 
-function saveItemsLocales() {
-    localStorage.setItem('panol_items', JSON.stringify(items));
-    localStorage.setItem('panol_movs', JSON.stringify(movs));
-}
-
 // ============================================================
 //  MANTENER SERVIDOR DESPIERTO (PING)
 // ============================================================
@@ -2048,7 +2043,7 @@ function actualizarVisibilidadPlanillas() {
 }
 
 // ============================================================
-//  ÓRDENES DE TRABAJO - COMPLETO
+//  ÓRDENES DE TRABAJO - CORREGIDO
 // ============================================================
 
 function guardarOTLocal() {
@@ -2059,36 +2054,74 @@ function guardarOTLocal() {
 }
 
 function cargarOrdenesDesdePlanillas() {
-    // Fusionar planillas con órdenes existentes
-    const ordenesFromPlanillas = planillas.map(p => ({
-        id: p.id || Date.now(),
-        fecha: p.fecha || '',
-        maquina: p.modulo || '',
-        falla: p.descripcion || '',
-        clasificacion: p.clasificacion || 'Orden de Trabajo',
-        tecnico: p.tecnico || p.usuario || '',
-        horas: p.horas || 0,
-        repuestos: p.repuesto || '',
-        solucion: '',
-        operativa: 'SI',
-        tipoOrden: p.tipo || '',
-        comentarios: p.observaciones || '',
-        _origen: 'planilla'
-    }));
-
-    // Combinar sin duplicados
     const idsExistentes = new Set(ordenes.map(o => o.id));
-    ordenesFromPlanillas.forEach(o => {
-        if (!idsExistentes.has(o.id)) {
-            ordenes.push(o);
-            idsExistentes.add(o.id);
+    let contador = 0;
+
+    planillas.forEach(p => {
+        const id = p.id || Date.now() + Math.random() * 1000;
+        if (!idsExistentes.has(id)) {
+            ordenes.push({
+                id: id,
+                fecha: p.fecha || '',
+                maquina: p.modulo || '',
+                falla: p.descripcion || '',
+                clasificacion: p.clasificacion || 'Orden de Trabajo',
+                tecnico: p.tecnico || p.usuario || '',
+                horas: p.horas || 0,
+                repuestos: p.repuesto || '',
+                solucion: '',
+                operativa: 'SI',
+                tipoOrden: p.tipo || '',
+                comentarios: p.observaciones || '',
+                _origen: 'planilla'
+            });
+            idsExistentes.add(id);
+            contador++;
         }
     });
 
-    guardarOTLocal();
+    if (contador > 0) {
+        console.log('📋 ' + contador + ' nuevas órdenes desde planillas');
+        guardarOTLocal();
+    }
+}
+
+function initOrdenes() {
+    // Cargar órdenes desde localStorage
+    const saved = localStorage.getItem('ot_ordenes_v2');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            if (parsed.length > 0) {
+                ordenes = parsed;
+                console.log('📋 Órdenes cargadas desde localStorage:', ordenes.length);
+            }
+        } catch(e) {
+            console.log('Error al cargar órdenes desde localStorage:', e);
+        }
+    }
+
+    if (currentUser?.rol === 'admin') {
+        cargarOrdenesDesdePlanillas();
+        console.log('📋 Órdenes totales después de cargar planillas:', ordenes.length);
+    }
+
+    renderTablaOT();
 }
 
 function renderTablaOT() {
+    // Cargar órdenes desde localStorage primero
+    const saved = localStorage.getItem('ot_ordenes_v2');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            if (parsed.length > 0) {
+                ordenes = parsed;
+            }
+        } catch(e) {}
+    }
+
+    // Si es admin, también cargar desde planillas
     if (currentUser?.rol === 'admin') {
         cargarOrdenesDesdePlanillas();
     }
@@ -2119,7 +2152,7 @@ function renderTablaOT() {
     const repuestos = filtrados.filter(o => o.repuestos && o.repuestos.trim()).length;
     document.getElementById('totalRepuestosOT').textContent = repuestos;
 
-    // Actualizar filtros
+    // Actualizar filtros de máquinas y técnicos
     const maquinas = [...new Set(ordenes.map(o => o.maquina).filter(Boolean))].sort();
     const tecnicos = [...new Set(ordenes.map(o => o.tecnico).filter(Boolean))].sort();
 
@@ -2296,23 +2329,6 @@ function guardarOT(e) {
     showToast('✅ Orden creada correctamente');
 }
 
-function initOrdenes() {
-    if (currentUser?.rol === 'admin') {
-        // Cargar órdenes guardadas
-        const saved = localStorage.getItem('ot_ordenes_v2');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.length > 0) {
-                    ordenes = parsed;
-                }
-            } catch(e) {}
-        }
-        cargarOrdenesDesdePlanillas();
-        renderTablaOT();
-    }
-}
-
 // ============================================================
 //  EXPORTAR ÓRDENES A EXCEL
 // ============================================================
@@ -2355,7 +2371,7 @@ function exportarOTXLSX() {
 }
 
 // ============================================================
-//  IMPORTAR ÓRDENES DESDE EXCEL - CORREGIDO
+//  IMPORTAR ÓRDENES DESDE EXCEL
 // ============================================================
 let importDataOT = null;
 
@@ -2389,7 +2405,6 @@ function processFileOT(file) {
         try {
             const wb = XLSX.read(e.target.result, { type: 'array' });
 
-            // Buscar la primera hoja con datos
             let wsDatos = null;
             let nombreHoja = 'Datos';
 
@@ -2417,7 +2432,6 @@ function processFileOT(file) {
             }
 
             importDataOT = data.map(row => {
-                // Buscar columnas de forma flexible
                 const id = row['ID'] || row['id'] || row['ID_Tarea'] || row['ID_TAREA'] || Date.now() + Math.random() * 1000;
                 const fecha = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
                 const maquina = row['Máquina'] || row['Maquina'] || row['maquina'] || row['MÁQUINA'] || '';
@@ -2586,6 +2600,15 @@ setTimeout(() => {
     }
 }, 500);
 
+// Función para depuración
+function verDatosOT() {
+    console.log('📋 Órdenes en memoria:', ordenes.length);
+    console.log('📋 Órdenes en localStorage:', JSON.parse(localStorage.getItem('ot_ordenes_v2') || '[]').length);
+    console.log('📋 Planillas:', planillas.length);
+    console.log('📋 Primera orden:', ordenes[0]);
+}
+
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
 console.log('👥 Usuarios locales: admin/admin123, empleado1/empleado123, empleado2/empleado123');
 console.log('📋 Sistema de Planillas y Órdenes cargado');
+console.log('💡 Para depurar órdenes, ejecutar verDatosOT()');
