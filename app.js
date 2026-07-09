@@ -2455,17 +2455,53 @@ function processFileOT(file) {
                 // Buscar ID en múltiples formatos
                 const id = row['ID_Tarea'] || row['ID'] || row['id'] || row['ID_TAREA'] || Date.now() + Math.random() * 1000;
                 
-                // Buscar Fecha - soportar múltiples formatos
-                let fecha = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
+                // ✅ CORRECCIÓN: Convertir fecha a string ANTES de usar includes
+                let fecha = '';
+                const fechaRaw = row['Fecha'] || row['fecha'] || row['FECHA'] || '';
+                
+                // Convertir a string de forma segura
+                if (fechaRaw !== null && fechaRaw !== undefined) {
+                    fecha = String(fechaRaw);
+                }
+                
+                // Si la fecha está en formato DD/MM/AA o DD/MM/YYYY
                 if (fecha && fecha.includes('/')) {
                     // Convertir DD/MM/AA o DD/MM/YYYY a YYYY-MM-DD
                     const partes = fecha.split('/');
                     if (partes.length === 3) {
                         let año = partes[2];
+                        // Si el año tiene 2 dígitos, asumir siglo 21
                         if (año.length === 2) {
-                            año = '20' + año; // Asumir siglo 21
+                            año = '20' + año;
                         }
-                        fecha = `${año}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                        // Asegurar que mes y día tengan 2 dígitos
+                        const mes = partes[1].padStart(2, '0');
+                        const dia = partes[0].padStart(2, '0');
+                        fecha = `${año}-${mes}-${dia}`;
+                    }
+                } else if (fecha && fecha.includes('-')) {
+                    // Si ya está en formato YYYY-MM-DD, mantenerlo
+                    // Pero asegurarse de que sea válido
+                    const partes = fecha.split('-');
+                    if (partes.length === 3) {
+                        // Verificar que sea un año válido (4 dígitos)
+                        if (partes[0].length === 4) {
+                            // Ya está en formato correcto
+                        } else if (partes[0].length === 2) {
+                            fecha = `20${partes[0]}-${partes[1]}-${partes[2]}`;
+                        }
+                    }
+                } else if (fecha && typeof fecha === 'number') {
+                    // Si es un número (timestamp de Excel)
+                    try {
+                        // Excel dates are serial numbers
+                        const excelDate = new Date((fecha - 25569) * 86400 * 1000);
+                        const año = excelDate.getFullYear();
+                        const mes = String(excelDate.getMonth() + 1).padStart(2, '0');
+                        const dia = String(excelDate.getDate()).padStart(2, '0');
+                        fecha = `${año}-${mes}-${dia}`;
+                    } catch(err) {
+                        fecha = '';
                     }
                 }
                 
@@ -2482,7 +2518,7 @@ function processFileOT(file) {
                 let clasificacion = row['Clasificación'] || row['Clasificacion'] || row['clasificacion'] || 'Orden de Trabajo';
                 // Si tiene 'Tipo de Orden', usarlo
                 if (row['Tipo de Orden']) {
-                    const tipoOrden = row['Tipo de Orden'];
+                    const tipoOrden = String(row['Tipo de Orden'] || '');
                     if (tipoOrden.includes('Preventivo') || tipoOrden.includes('preventivo')) {
                         clasificacion = 'Preventivo';
                     } else if (tipoOrden.includes('Correctivo')) {
@@ -2494,12 +2530,11 @@ function processFileOT(file) {
                 
                 // Buscar Horas - puede estar en 'Tiempo de trabajo' o 'Horas'
                 let horas = 0;
-                if (row['Tiempo de trabajo'] !== undefined && row['Tiempo de trabajo'] !== '') {
-                    horas = parseFloat(row['Tiempo de trabajo']) || 0;
-                } else if (row['Horas'] !== undefined && row['Horas'] !== '') {
-                    horas = parseFloat(row['Horas']) || 0;
-                } else if (row['horas'] !== undefined && row['horas'] !== '') {
-                    horas = parseFloat(row['horas']) || 0;
+                const horasRaw = row['Tiempo de trabajo'] !== undefined ? row['Tiempo de trabajo'] : 
+                                  (row['Horas'] !== undefined ? row['Horas'] : 
+                                  (row['horas'] !== undefined ? row['horas'] : 0));
+                if (horasRaw !== null && horasRaw !== undefined && horasRaw !== '') {
+                    horas = parseFloat(String(horasRaw)) || 0;
                 }
                 
                 // Buscar Repuestos
@@ -2511,9 +2546,10 @@ function processFileOT(file) {
                 // Buscar Operativa (TRUE/FALSE)
                 let operativa = 'SI';
                 const opVal = row['Operativa'] || row['operativa'] || '';
-                if (opVal === 'TRUE' || opVal === true || opVal === 'SI' || opVal === 'si') {
+                const opStr = String(opVal).toUpperCase();
+                if (opStr === 'TRUE' || opStr === 'SI' || opStr === '1') {
                     operativa = 'SI';
-                } else if (opVal === 'FALSE' || opVal === false || opVal === 'NO' || opVal === 'no') {
+                } else if (opStr === 'FALSE' || opStr === 'NO' || opStr === '0') {
                     operativa = 'NO';
                 }
                 
@@ -2578,7 +2614,7 @@ function processFileOT(file) {
             showToast('✅ Archivo procesado correctamente. ' + importDataOT.length + ' registros listos para importar.');
 
         } catch (err) {
-            console.error(err);
+            console.error('❌ Error:', err);
             showToast('❌ Error al leer el archivo: ' + err.message, false);
         }
     };
