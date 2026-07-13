@@ -6,8 +6,10 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Aumentado a 50MB para soportar imágenes en base64
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Servir archivos estáticos
 app.use(express.static(path.join(__dirname)));
@@ -25,14 +27,14 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 if (!fs.existsSync(DATA_FILE)) {
     const initialData = {
         items: [
-            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO" },
-            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO" },
-            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO" },
-            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO" },
-            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI" },
-            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO" },
-            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI" },
-            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO" }
+            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
         ],
         movimientos: [],
         planillas: [],
@@ -44,6 +46,7 @@ if (!fs.existsSync(DATA_FILE)) {
         }
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2));
+    console.log('📦 Base de datos inicial creada');
 }
 
 function readData() {
@@ -51,6 +54,7 @@ function readData() {
         const data = fs.readFileSync(DATA_FILE, 'utf8');
         return JSON.parse(data);
     } catch (error) {
+        console.error('❌ Error al leer datos:', error);
         return { items: [], movimientos: [], planillas: [], correctivos: [], usuarios: {} };
     }
 }
@@ -60,6 +64,7 @@ function writeData(data) {
         fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
         return true;
     } catch (error) {
+        console.error('❌ Error al guardar datos:', error);
         return false;
     }
 }
@@ -84,7 +89,7 @@ function authenticate(req, res, next) {
 }
 
 // ============================================================
-//  RUTAS API - STOCK
+//  RUTAS API - AUTENTICACIÓN
 // ============================================================
 
 app.post('/api/login', (req, res) => {
@@ -117,6 +122,10 @@ app.post('/api/logout', authenticate, (req, res) => {
     res.json({ success: true });
 });
 
+// ============================================================
+//  RUTAS API - STOCK
+// ============================================================
+
 app.get('/api/items', authenticate, (req, res) => {
     const data = readData();
     res.json(data.items);
@@ -136,6 +145,7 @@ app.post('/api/movimiento', authenticate, (req, res) => {
     
     const data = readData();
     
+    // Validar stock para SALIDA
     if (tipo === 'SALIDA') {
         const item = data.items.find(i => i.codigo === codigo);
         if (!item) {
@@ -170,6 +180,7 @@ app.post('/api/movimiento', authenticate, (req, res) => {
     
     data.movimientos.unshift(movimiento);
     
+    // Si es ENTRADA o DEVOLUCIÓN y el ítem no existe, crearlo
     if (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') {
         const itemExistente = data.items.find(i => i.codigo === codigo);
         if (!itemExistente) {
@@ -184,7 +195,8 @@ app.post('/api/movimiento', authenticate, (req, res) => {
                 ubicacion: ubicacion || '',
                 planta: planta || 'Planta 1',
                 critico: critico || 'NO',
-                obs: obs || ''
+                obs: obs || '',
+                imagenes: []
             });
         }
     }
@@ -209,6 +221,11 @@ app.post('/api/items', authenticate, (req, res) => {
         return res.status(400).json({ error: 'El código ya existe' });
     }
     
+    // Asegurar que tenga el campo imagenes
+    if (!nuevoItem.imagenes) {
+        nuevoItem.imagenes = [];
+    }
+    
     data.items.push(nuevoItem);
     writeData(data);
     res.json({ success: true, item: nuevoItem });
@@ -226,7 +243,14 @@ app.put('/api/items/:codigo', authenticate, (req, res) => {
         return res.status(404).json({ error: 'Ítem no encontrado' });
     }
     
+    // Actualizar el ítem
     data.items[index] = { ...data.items[index], ...req.body };
+    
+    // Asegurar que tenga el campo imagenes
+    if (!data.items[index].imagenes) {
+        data.items[index].imagenes = [];
+    }
+    
     writeData(data);
     res.json({ success: true, item: data.items[index] });
 });
@@ -248,6 +272,58 @@ app.delete('/api/items/:codigo', authenticate, (req, res) => {
     res.json({ success: true });
 });
 
+// ============================================================
+//  RUTAS API - IMÁGENES (NUEVO)
+// ============================================================
+
+// Endpoint específico para actualizar solo las imágenes de un ítem
+app.put('/api/items/:codigo/imagenes', authenticate, (req, res) => {
+    if (req.user.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo administradores pueden editar' });
+    }
+    
+    const { imagenes } = req.body;
+    if (!Array.isArray(imagenes)) {
+        return res.status(400).json({ error: 'Se espera un array de imágenes' });
+    }
+    
+    // Validar cantidad máxima
+    if (imagenes.length > 5) {
+        return res.status(400).json({ error: 'Máximo 5 imágenes por ítem' });
+    }
+    
+    // Validar tamaño total
+    const tamañoTotal = imagenes.reduce((total, img) => {
+        if (img && img.startsWith('data:image')) {
+            const base64 = img.split(',')[1] || '';
+            return total + Math.round((base64.length * 3) / 4);
+        }
+        return total;
+    }, 0);
+    
+    if (tamañoTotal > 25 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Las imágenes exceden el tamaño máximo (25MB)' });
+    }
+    
+    const data = readData();
+    const index = data.items.findIndex(i => i.codigo === req.params.codigo);
+    
+    if (index === -1) {
+        return res.status(404).json({ error: 'Ítem no encontrado' });
+    }
+    
+    data.items[index].imagenes = imagenes;
+    // Mantener compatibilidad con campo "imagen" único
+    data.items[index].imagen = imagenes.length > 0 ? imagenes[0] : null;
+    
+    writeData(data);
+    res.json({ success: true, item: data.items[index] });
+});
+
+// ============================================================
+//  RUTAS API - BACKUP
+// ============================================================
+
 app.get('/api/backup', authenticate, (req, res) => {
     if (req.user.rol !== 'admin') {
         return res.status(403).json({ error: 'Solo administradores pueden descargar backups' });
@@ -262,12 +338,18 @@ app.post('/api/backup/restore', authenticate, (req, res) => {
         return res.status(403).json({ error: 'Solo administradores pueden restaurar backups' });
     }
     
-    const data = req.body;
-    if (!data.items || !data.movimientos || !data.usuarios) {
+    const backupData = req.body;
+    if (!backupData.items || !backupData.movimientos || !backupData.usuarios) {
         return res.status(400).json({ error: 'Datos inválidos' });
     }
     
-    writeData(data);
+    // Asegurar que todos los ítems tengan el campo imagenes
+    backupData.items = backupData.items.map(item => ({
+        ...item,
+        imagenes: item.imagenes || []
+    }));
+    
+    writeData(backupData);
     res.json({ success: true });
 });
 
@@ -311,7 +393,7 @@ app.get('/api/planillas', authenticate, (req, res) => {
 });
 
 app.post('/api/planillas', authenticate, (req, res) => {
-    const { fecha, tipo, modulo, descripcion, horas, repuesto, observaciones } = req.body;
+    const { fecha, tipo, clasificacion, modulo, descripcion, horas, repuesto, observaciones, tecnico } = req.body;
     
     if (!fecha || !tipo || !modulo || !descripcion || !horas) {
         return res.status(400).json({ error: 'Faltan datos obligatorios' });
@@ -324,13 +406,14 @@ app.post('/api/planillas', authenticate, (req, res) => {
         id: Date.now(),
         fecha,
         tipo,
+        clasificacion: clasificacion || 'Orden de Trabajo',
         modulo,
         descripcion,
         horas: Number(horas),
-        repuesto: repuesto || 'Ninguno',
+        repuesto: repuesto || '',
         observaciones: observaciones || '',
         usuario: req.user.username,
-        tecnico: req.user.username,
+        tecnico: tecnico || req.user.username,
         timestamp: new Date().toISOString()
     };
     
@@ -463,8 +546,24 @@ app.get('/api/correctivos/export', authenticate, (req, res) => {
 });
 
 // ============================================================
+//  MANEJO DE ERRORES
+// ============================================================
+
+app.use((err, req, res, next) => {
+    console.error('❌ Error:', err);
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ error: 'Los datos enviados son demasiado grandes. Máximo 50MB.' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+});
+
+// ============================================================
 //  INICIAR SERVIDOR
 // ============================================================
+
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(`✅ Servidor corriendo en puerto ${PORT}`);
+    console.log(`📦 Datos guardados en: ${DATA_FILE}`);
+    console.log(`🖼️  Soporte de imágenes múltiples: ACTIVADO (máx 25MB total)`);
+    console.log(`👥 Usuarios: admin/admin123, empleado1/empleado123, empleado2/empleado123`);
 });
