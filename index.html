@@ -124,7 +124,7 @@
                 </div>
             </section>
 
-            <!-- EDITAR -->
+            <!-- EDITAR CON IMÁGENES -->
             <section class="section" id="editarSection">
                 <div class="form-container">
                     <h2 class="form-title">✏️ Editar ítem</h2>
@@ -162,6 +162,30 @@
                             <input type="text" class="form-input" id="editCritico" placeholder="SI o NO" maxlength="2">
                         </div>
                         <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="editObs"></div>
+                        
+                        <!-- ========================================= -->
+                        <!-- IMAGEN DEL COMPONENTE - NUEVO CAMPO -->
+                        <!-- ========================================= -->
+                        <div class="form-group">
+                            <label class="form-label">Imagen del componente</label>
+                            <div class="image-upload-container">
+                                <div class="image-preview" id="editImagePreview" onclick="document.getElementById('editImageInput').click()">
+                                    <div class="image-placeholder" id="editImagePlaceholder">
+                                        <span class="image-icon">📷</span>
+                                        <span class="image-text">Tocar para agregar imagen</span>
+                                    </div>
+                                    <img id="editImageDisplay" style="display:none;max-width:100%;max-height:200px;border-radius:8px;" alt="Imagen del componente">
+                                </div>
+                                <div class="image-upload-buttons" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                                    <input type="file" id="editImageInput" accept="image/*" style="display:none;" onchange="cargarImagenEdit(event)">
+                                    <button type="button" class="btn btn-outline" onclick="document.getElementById('editImageInput').click()" style="flex:1;text-align:center;">📁 Subir imagen</button>
+                                    <button type="button" class="btn btn-outline" onclick="tomarFotoEdit()" style="flex:1;text-align:center;">📷 Tomar foto</button>
+                                    <button type="button" class="btn btn-outline" onclick="eliminarImagenEdit()" style="flex:1;text-align:center;border-color:#C62828;color:#C62828;">🗑️ Eliminar</button>
+                                </div>
+                                <div id="editImageInfo" style="font-size:11px;color:var(--sub);margin-top:4px;"></div>
+                            </div>
+                        </div>
+                        
                         <div class="btn-group">
                             <button class="btn btn-cancel" onclick="cancelEdit()">Cancelar</button>
                             <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar</button>
