@@ -34,6 +34,9 @@ let pingInterval = null;
 // IMÁGENES TEMPORALES (para edición)
 let imagenesTemporales = [];
 
+// CARROUSEL INTERVALS
+let carrouselIntervals = {};
+
 // PLANILLAS
 let planillas = JSON.parse(localStorage.getItem('panol_planillas')) || [];
 let planillasInterval = null;
@@ -467,9 +470,13 @@ function filterByKPI(filter) {
 }
 
 // ============================================================
-//  RENDER STOCK - CON IMÁGENES
+//  🔥 RENDER STOCK - TARJETAS CON CARROUSEL AUTOMÁTICO 🔥
 // ============================================================
 function renderStock() {
+    // Limpiar intervalos anteriores
+    Object.values(carrouselIntervals).forEach(clearInterval);
+    carrouselIntervals = {};
+
     const searchInput = document.querySelector('.search-input');
     const catSelect = document.querySelector('.category-select');
     const q = searchInput?.value.toLowerCase() || '';
@@ -492,47 +499,95 @@ function renderStock() {
         filtrados = filtrados.filter(i => esCritico(i));
     }
 
-    const tableBody = document.getElementById('stockTable');
-    tableBody.innerHTML = '';
+    const container = document.getElementById('stockCardsContainer');
+    if (!container) return;
+    container.innerHTML = '';
 
     if (filtrados.length === 0) {
-        tableBody.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Sin resultados</div></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Sin resultados</div></div>';
         return;
     }
 
-    tableBody.innerHTML = filtrados.map((item) => {
+    filtrados.forEach((item) => {
         const actual = stockActual(item);
         const e = estadoItem(actual, item.minimo, item);
 
-        // Generar HTML de la imagen (primera imagen si existe)
-        let imagenHtml = '';
+        // Obtener todas las imágenes
+        const todasImagenes = [];
         if (item.imagenes && item.imagenes.length > 0) {
-            imagenHtml = `<img src="${item.imagenes[0]}" alt="${item.codigo}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--borde);">`;
-            if (item.imagenes.length > 1) {
-                imagenHtml += `<span style="position:absolute;bottom:-2px;right:-4px;background:var(--verde);color:#fff;font-size:7px;padding:1px 3px;border-radius:6px;font-weight:700;">+${item.imagenes.length - 1}</span>`;
-            }
-            imagenHtml = `<span style="position:relative;display:inline-block;line-height:0;">${imagenHtml}</span>`;
+            todasImagenes.push(...item.imagenes);
         } else if (item.imagen) {
-            // Compatibilidad con datos viejos
-            imagenHtml = `<img src="${item.imagen}" alt="${item.codigo}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--borde);">`;
-        } else {
-            imagenHtml = `<span style="font-size:16px;color:var(--sub);">📦</span>`;
+            todasImagenes.push(item.imagen);
         }
 
-        return `<div class="table-row" onclick="editItemFromTable('${item.codigo}')" title="Click para editar">
-            <span class="code-cell" style="display:flex;align-items:center;gap:6px;">
-                ${imagenHtml}
-                ${item.codigo}
-            </span>
-            <span class="desc-cell">${item.descripcion}</span>
-            <span class="cat-cell">${item.categoria || '—'}</span>
-            <span class="num-cell">${item.minimo}</span>
-            <span class="stock-cell" style="color:${actual <= item.minimo ? e.color : 'var(--texto)'}">${actual}</span>
-            <span class="num-cell">${item.maximo}</span>
-            <span style="font-size:10px;color:var(--sub);">${item.ubicacion || '—'}</span>
-            <span style="text-align:center;"><span class="badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;">${e.label}</span></span>
-        </div>`;
-    }).join('');
+        const card = document.createElement('div');
+        card.className = 'stock-card';
+        card.onclick = () => editItemFromTable(item.codigo);
+        card.title = 'Click para editar';
+
+        // Contenedor de imagen
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'card-img-container';
+
+        if (todasImagenes.length > 0) {
+            const img = document.createElement('img');
+            img.src = todasImagenes[0];
+            img.alt = item.descripcion;
+            img.className = 'card-img';
+            img.loading = 'lazy';
+            imgContainer.appendChild(img);
+
+            // Badge de cantidad
+            if (todasImagenes.length > 1) {
+                const badge = document.createElement('span');
+                badge.className = 'card-img-badge';
+                badge.textContent = `${todasImagenes.length} fotos`;
+                imgContainer.appendChild(badge);
+            }
+
+            // Dots indicadores + carrousel
+            if (todasImagenes.length > 1) {
+                const dotsContainer = document.createElement('div');
+                dotsContainer.className = 'card-dots';
+                todasImagenes.forEach((_, idx) => {
+                    const dot = document.createElement('span');
+                    dot.className = 'card-dot' + (idx === 0 ? ' active' : '');
+                    dotsContainer.appendChild(dot);
+                });
+                imgContainer.appendChild(dotsContainer);
+
+                let currentIdx = 0;
+                const intervalId = setInterval(() => {
+                    currentIdx = (currentIdx + 1) % todasImagenes.length;
+                    img.src = todasImagenes[currentIdx];
+                    const dots = dotsContainer.querySelectorAll('.card-dot');
+                    dots.forEach((d, i) => d.classList.toggle('active', i === currentIdx));
+                }, 3000);
+                carrouselIntervals[item.codigo] = intervalId;
+            }
+        } else {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'card-img-placeholder';
+            placeholder.textContent = '📦';
+            imgContainer.appendChild(placeholder);
+        }
+
+        card.appendChild(imgContainer);
+
+        // Info de la tarjeta
+        const info = document.createElement('div');
+        info.className = 'card-info';
+        info.innerHTML = `
+            <div class="card-descripcion">${item.descripcion}</div>
+            <div class="card-codigo">${item.codigo}</div>
+            <div class="card-stock" style="color: ${actual <= item.minimo ? e.color : 'var(--verdeM)'}">
+                Stock: ${actual} ${item.unidad || 'u.'}
+            </div>
+            <span class="badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;margin-top:4px;">${e.label}</span>
+        `;
+        card.appendChild(info);
+        container.appendChild(card);
+    });
 }
 
 function filterStock() {
@@ -1265,8 +1320,6 @@ function toggleCategoria(categoria) {
 // ============================================================
 //  ADMIN - PLANTILLA EXCEL / EXPORTAR / BACKUP / IMPORT
 // ============================================================
-// (El resto del código de ADMIN, PLANILLAS, ÓRDENES se mantiene IGUAL al original)
-
 function descargarPlantilla() {
     const wb = XLSX.utils.book_new();
     const data = [
@@ -2245,7 +2298,7 @@ setTimeout(() => {
 }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
-console.log('📸 Múltiples imágenes por componente - ACTIVADO');
+console.log('📸 Múltiples imágenes + Carrousel automático - ACTIVADO');
 console.log('👥 Usuarios: admin/admin123, empleado1/empleado123');
 console.log('💡 Para depurar: verDatosOT()');
 
@@ -2253,4 +2306,5 @@ function verDatosOT() {
     console.log('📋 Órdenes:', ordenes.length);
     console.log('📦 Ítems:', items.length);
     console.log('🖼️ Ítems con imágenes:', items.filter(i => i.imagenes && i.imagenes.length > 0).length);
+    console.log('🎠 Carrousel intervals activos:', Object.keys(carrouselIntervals).length);
 }
