@@ -1399,6 +1399,29 @@ textarea.form-input {
         flex-wrap: wrap;
         gap: 8px;
     }
+
+    /* Imágenes en móvil */
+    .imagenes-grid {
+        grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)) !important;
+        gap: 8px !important;
+    }
+    .imagen-card .btn-eliminar-imagen,
+    .imagen-card .btn-preview-imagen {
+        opacity: 1 !important;
+        width: 20px !important;
+        height: 20px !important;
+        font-size: 11px !important;
+        top: 3px !important;
+    }
+    .imagen-card .btn-preview-imagen {
+        bottom: 3px !important;
+        right: 3px !important;
+        top: auto !important;
+    }
+    .btn-upload-option {
+        font-size: 11px !important;
+        padding: 6px 10px !important;
+    }
 }
 
 /* Móviles pequeños */
@@ -1760,4 +1783,291 @@ textarea.form-input {
         padding: 6px 8px;
         font-size: 10px;
     }
+}
+
+/* ============================================
+   GALERÍA DE IMÁGENES MÚLTIPLES - NUEVO
+   ============================================ */
+.imagenes-container {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1.5px solid var(--borde);
+    margin-top: 4px;
+}
+
+.imagenes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+    min-height: 60px;
+}
+
+/* Card de imagen individual */
+.imagen-card {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1.5px solid var(--borde);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.imagen-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    border-color: var(--verde);
+}
+.imagen-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Badge de cantidad */
+.imagen-card .imagen-index {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(31, 92, 46, 0.9);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Botón de eliminar imagen */
+.imagen-card .btn-eliminar-imagen {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(198, 40, 40, 0.9);
+    color: #fff;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    transform: scale(0.8);
+}
+.imagen-card:hover .btn-eliminar-imagen {
+    opacity: 1;
+    transform: scale(1);
+}
+.btn-eliminar-imagen:hover {
+    background: #B71C1C;
+    transform: scale(1.1) !important;
+}
+.btn-eliminar-imagen:active {
+    transform: scale(0.9) !important;
+}
+
+/* Botón de vista previa */
+.imagen-card .btn-preview-imagen {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(21, 101, 192, 0.9);
+    color: #fff;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    transform: scale(0.8);
+}
+.imagen-card:hover .btn-preview-imagen {
+    opacity: 1;
+    transform: scale(1);
+}
+.btn-preview-imagen:hover {
+    background: #0D47A1;
+    transform: scale(1.1) !important;
+}
+
+/* Área de upload */
+.imagenes-upload-area {
+    border: 2px dashed var(--borde);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s;
+    background: var(--surface);
+}
+.imagenes-upload-area:hover {
+    border-color: var(--verde);
+    background: var(--verdeC);
+}
+.upload-placeholder {
+    cursor: pointer;
+    padding: 12px;
+}
+.upload-icon {
+    font-size: 28px;
+    display: block;
+    margin-bottom: 4px;
+}
+.upload-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--verde);
+    display: block;
+    margin-bottom: 2px;
+}
+.upload-hint {
+    font-size: 10px;
+    color: var(--sub);
+}
+.upload-buttons-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.btn-upload-option {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1.5px solid var(--verde);
+    background: var(--surface);
+    color: var(--verde);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.btn-upload-option:hover {
+    background: var(--verde);
+    color: #fff;
+}
+.btn-upload-option:active {
+    transform: scale(0.96);
+}
+
+/* Sin imágenes */
+.imagenes-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--sub);
+    grid-column: 1 / -1;
+}
+.imagenes-empty .empty-img-icon {
+    font-size: 32px;
+    display: block;
+    margin-bottom: 6px;
+}
+
+/* ============================================
+   MODAL VISOR DE IMAGEN - NUEVO
+   ============================================ */
+.modal-imagen-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.2s ease;
+}
+.modal-imagen-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+.modal-imagen-content img {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    object-fit: contain;
+}
+.modal-imagen-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 301;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.modal-imagen-close:hover {
+    background: rgba(255,255,255,0.4);
+    transform: scale(1.1);
+}
+.modal-imagen-nav {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.modal-imagen-nav button {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.modal-imagen-nav button:hover {
+    background: rgba(255,255,255,0.4);
+}
+.modal-imagen-nav button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+.modal-imagen-counter {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ============================================
+   FADEOUT ANIMATION - NUEVO
+   ============================================ */
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
