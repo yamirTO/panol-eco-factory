@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Control de Stock · Pañol ECO FACTORY SRL</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js">
-    </script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -106,7 +105,9 @@
         <!-- CONTENT -->
         <main class="content">
 
-            <!-- STOCK - VISTA DE TARJETAS -->
+            <!-- ========================================= -->
+            <!-- STOCK - VISTA DE TARJETAS CON CARROUSEL -->
+            <!-- ========================================= -->
             <section class="section active" id="stockSection">
                 <div class="filters">
                     <input type="text" class="search-input" placeholder="🔍 Buscar..." oninput="filterStock()">
@@ -114,11 +115,13 @@
                         <option>Todas</option>
                     </select>
                 </div>
-                <!-- NUEVO: Grid de tarjetas de stock -->
+                <!-- GRID DE TARJETAS -->
                 <div class="stock-cards-grid" id="stockCardsContainer"></div>
             </section>
 
+            <!-- ========================================= -->
             <!-- EDITAR CON IMÁGENES MÚLTIPLES -->
+            <!-- ========================================= -->
             <section class="section" id="editarSection">
                 <div class="form-container">
                     <h2 class="form-title">✏️ Editar ítem</h2>
@@ -186,7 +189,9 @@
                 </div>
             </section>
 
+            <!-- ========================================= -->
             <!-- MOVIMIENTO -->
+            <!-- ========================================= -->
             <section class="section" id="movimientoSection">
                 <div class="form-container">
                     <h2 class="form-title">📝 Registrar movimiento</h2>
@@ -233,10 +238,7 @@
                             <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="newUbicacion" placeholder="E1-A4"></div>
                             <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="newPlanta" placeholder="Planta 1"></div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Crítico (SI/NO)</label>
-                            <input type="text" class="form-input" id="newCritico" placeholder="SI o NO" maxlength="2" value="NO">
-                        </div>
+                        <div class="form-group"><label class="form-label">Crítico (SI/NO)</label><input type="text" class="form-input" id="newCritico" placeholder="SI o NO" maxlength="2" value="NO"></div>
                     </div>
                     <div class="form-grid">
                         <div class="form-group"><label class="form-label">Cantidad *</label><input type="number" class="form-input" id="cantidadInput" min="1" placeholder="0"></div>
@@ -249,39 +251,30 @@
                 </div>
             </section>
 
+            <!-- ========================================= -->
             <!-- HISTORIAL -->
+            <!-- ========================================= -->
             <section class="section" id="historialSection">
                 <div id="historyList" class="history-list"></div>
             </section>
 
+            <!-- ========================================= -->
             <!-- CATEGORÍAS -->
+            <!-- ========================================= -->
             <section class="section" id="categoriasSection">
                 <div id="categoriasList"></div>
             </section>
 
+            <!-- ========================================= -->
             <!-- PLANILLA DE TRABAJO -->
+            <!-- ========================================= -->
             <section class="section" id="planillaSection">
                 <div class="form-container">
                     <h2 class="form-title">📋 Planilla de Trabajo</h2>
                     <p class="form-subtitle">Registrá los trabajos que realizaste hoy</p>
                     <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-input" id="planillaFecha" readonly></div>
-                    <div class="form-group"><label class="form-label">Tipo de Trabajo *</label>
-                        <select class="form-input" id="planillaTipo">
-                            <option value="">Seleccioná un tipo...</option>
-                            <option value="Mecánico">🔧 Mecánico</option>
-                            <option value="Hidráulico">💧 Hidráulico</option>
-                            <option value="Eléctrico">⚡ Eléctrico</option>
-                            <option value="Electrónico">📡 Electrónico</option>
-                            <option value="Neumático">💨 Neumático</option>
-                            <option value="Otro">📌 Otro</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label class="form-label">Clasificación *</label>
-                        <select class="form-input" id="planillaClasificacion">
-                            <option value="Orden de Trabajo">📋 Orden de Trabajo</option>
-                            <option value="Preventivo">🛠️ Preventivo</option>
-                        </select>
-                    </div>
+                    <div class="form-group"><label class="form-label">Tipo de Trabajo *</label><select class="form-input" id="planillaTipo"><option value="">Seleccioná un tipo...</option><option value="Mecánico">🔧 Mecánico</option><option value="Hidráulico">💧 Hidráulico</option><option value="Eléctrico">⚡ Eléctrico</option><option value="Electrónico">📡 Electrónico</option><option value="Neumático">💨 Neumático</option><option value="Otro">📌 Otro</option></select></div>
+                    <div class="form-group"><label class="form-label">Clasificación *</label><select class="form-input" id="planillaClasificacion"><option value="Orden de Trabajo">📋 Orden de Trabajo</option><option value="Preventivo">🛠️ Preventivo</option></select></div>
                     <div class="form-group"><label class="form-label">Módulo Intervenido *</label><input type="text" class="form-input" id="planillaModulo" placeholder="Ej: Módulo de Corte, Sistema Hidráulico..."></div>
                     <div class="form-group"><label class="form-label">Descripción de la Tarea *</label><textarea class="form-input" id="planillaDescripcion" rows="4" placeholder="Descripción detallada del trabajo realizado..."></textarea></div>
                     <div class="form-group"><label class="form-label">Técnico</label><input type="text" class="form-input" id="planillaTecnico" readonly></div>
@@ -294,7 +287,9 @@
                 </div>
             </section>
 
+            <!-- ========================================= -->
             <!-- PLANILLAS RECIBIDAS (ADMIN) -->
+            <!-- ========================================= -->
             <section class="section" id="planillasRecibidasSection">
                 <div class="form-container" style="max-width:100%;">
                     <h2 class="form-title">📊 Planillas Recibidas</h2>
@@ -308,7 +303,9 @@
                 </div>
             </section>
 
+            <!-- ========================================= -->
             <!-- ÓRDENES DE TRABAJO (ADMIN) -->
+            <!-- ========================================= -->
             <section class="section" id="ordenesSection">
                 <div class="card-ordenes">
                     <div class="card-header-ordenes">
@@ -331,15 +328,14 @@
                         <select class="category-select" id="filterTecnicoOT" onchange="renderTablaOT()"><option value="">Todos los técnicos</option></select>
                         <button class="btn btn-outline" onclick="limpiarFiltrosOT()" style="padding:6px 16px;">✕ Limpiar</button>
                     </div>
-                    <div class="table-container-ot">
-                        <table><thead><tr><th>ID</th><th>Fecha</th><th>Máquina</th><th>Falla</th><th>Clasificación</th><th>Técnico</th><th>Horas</th><th>Repuestos</th><th style="text-align:center;">Acciones</th></tr></thead>
-                        <tbody id="tablaBodyOT"></tbody></table>
-                    </div>
-                    <div id="emptyStateOT" class="empty-state" style="display:none;"><div class="empty-icon">📭</div><div class="empty-title">No hay registros</div><div style="color:var(--sub);">Los trabajos aparecerán aquí cuando se registren</div></div>
+                    <div class="table-container-ot"><table><thead><tr><th>ID</th><th>Fecha</th><th>Máquina</th><th>Falla</th><th>Clasificación</th><th>Técnico</th><th>Horas</th><th>Repuestos</th><th style="text-align:center;">Acciones</th></tr></thead><tbody id="tablaBodyOT"></tbody></table></div>
+                    <div id="emptyStateOT" class="empty-state" style="display:none;"><div class="empty-icon">📭</div><div class="empty-title">No hay registros</div></div>
                 </div>
             </section>
 
+            <!-- ========================================= -->
             <!-- ADMIN -->
+            <!-- ========================================= -->
             <section class="section" id="adminSection">
                 <div class="form-container">
                     <h2 class="form-title">⚙️ Administración</h2>
