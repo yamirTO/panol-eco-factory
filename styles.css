@@ -348,8 +348,8 @@ textarea.form-input { resize: vertical; min-height: 70px; }
     justify-content: space-between;
     gap: 12px;
     padding: 14px 18px;
-    margin-top: 24px;           /* más separación arriba */
-    margin-bottom: 8px;         /* espacio abajo */
+    margin-top: 40px;           /* más separación arriba */
+    margin-bottom: 15px;         /* espacio abajo */
     background: var(--surface);
     border-radius: 12px;
     border: 1.5px solid var(--borde);
