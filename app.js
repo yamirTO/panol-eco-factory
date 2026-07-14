@@ -2,6 +2,7 @@
 //  CONFIGURACIÓN - CONECTADO AL SERVIDOR EN RENDER
 // ============================================================
 const API_URL = 'https://panol-eco-factory.onrender.com';
+const CODIGO_PANOL = 'ECO-FACTORY-2024';
 
 // ============================================================
 //  USUARIOS LOCALES (solo admin para emergencias sin conexión)
@@ -138,9 +139,18 @@ function apiCall(endpoint, options = {}) {
 //  AUTENTICACIÓN
 // ============================================================
 function doLogin() {
+    const codigoPanol = document.getElementById('codigoPanol').value.trim();
     const username = document.getElementById('loginUser').value.trim();
     const password = document.getElementById('loginPass').value.trim();
 
+    if (!codigoPanol) {
+        showLoginError('Ingresá el código de pañol');
+        return;
+    }
+    if (codigoPanol !== CODIGO_PANOL) {
+        showLoginError('Código de pañol incorrecto');
+        return;
+    }
     if (!username || !password) {
         showLoginError('Ingresá usuario y contraseña');
         return;
@@ -152,7 +162,7 @@ function doLogin() {
     fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, codigoPanol })
     })
     .then(res => res.json())
     .then(data => {
@@ -243,6 +253,7 @@ function doLogout() {
     document.getElementById('appScreen').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('loginPass').value = '';
+    document.getElementById('codigoPanol').value = '';
     document.getElementById('loginError').className = 'login-error';
     detenerPing();
 }
@@ -286,11 +297,10 @@ function updateKPIsLocales() {
 // ============================================================
 //  PING
 // ============================================================
-function iniciarPing() { setTimeout(hacerPing, 2000); pingInterval = setInterval(hacerPing, 300000); }
+function iniciarPing() { setTimeout(hacerPing, 2000); pingInterval = setInterval(hacerPing, 240000); }
 function detenerPing() { if (pingInterval) { clearInterval(pingInterval); pingInterval = null; } document.getElementById('pingStatus').textContent = '⏱ Detenido'; document.getElementById('pingStatus').className = 'ping-status'; }
 function hacerPing() {
     pingContador++;
-    if (currentUser && USUARIOS_LOCALES[currentUser.username]) { document.getElementById('pingStatus').textContent = `⏱ ${pingContador} ✅ (local)`; document.getElementById('pingStatus').className = 'ping-status active'; return; }
     fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token || '' }, signal: AbortSignal.timeout(10000) })
         .then(() => { const s = document.getElementById('pingStatus'); s.textContent = `⏱ ${pingContador} ✅`; s.className = 'ping-status active'; })
         .catch(() => { const s = document.getElementById('pingStatus'); s.textContent = `⏱ ${pingContador} ⚠️`; s.className = 'ping-status'; });
@@ -603,9 +613,10 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && document.
 setTimeout(() => { if (document.getElementById('ordenesSection')) { initOrdenes(); cargarSelectoresOT(); } }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
+console.log('🔑 Código de Pañol: ' + CODIGO_PANOL);
 console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO');
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
-console.log('🌐 Empleados: Siempre conectados al servidor');
+console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
 console.log('💡 Para depurar: verDatosOT()');
 
 function verDatosOT() { console.log('📋 Órdenes:', ordenes.length); console.log('📦 Ítems:', items.length); console.log('🖼️ Ítems con imágenes:', items.filter(i => i.imagenes && i.imagenes.length > 0).length); console.log('🎠 Carrousel intervals activos:', Object.keys(carrouselIntervals).length); }
