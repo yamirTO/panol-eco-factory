@@ -24,18 +24,25 @@
                 <h1 class="login-title">Control de Stock</h1>
                 <p class="login-subtitle">Pañol · ECO FACTORY SRL</p>
             </div>
-            <div class="login-error" id="loginError">Usuario o contraseña incorrectos</div>
+            <div class="login-error" id="loginError">Código, usuario o contraseña incorrectos</div>
+            
+            <!-- CÓDIGO DE PAÑOL -->
+            <div class="form-group">
+                <label class="form-label">Código de Pañol</label>
+                <input type="text" class="form-input" id="codigoPanol" placeholder="Ej: ECO-FACTORY-2024" value="">
+            </div>
+            
             <div class="form-group">
                 <label class="form-label">Usuario</label>
-                <input type="text" class="form-input" id="loginUser" placeholder="admin" value="admin">
+                <input type="text" class="form-input" id="loginUser" placeholder="Nombre de usuario" value="">
             </div>
             <div class="form-group">
                 <label class="form-label">Contraseña</label>
-                <input type="password" class="form-input" id="loginPass" placeholder="••••••••" value="admin123">
+                <input type="password" class="form-input" id="loginPass" placeholder="••••••••" value="">
             </div>
             <button class="login-btn" onclick="doLogin()">Ingresar al sistema</button>
             <div class="login-help">
-                <span>admin / admin123 · empleado1 / empleado123</span>
+                <span>Código: ECO-FACTORY-2024 · Admin: admin / admin123</span>
             </div>
         </div>
     </div>
