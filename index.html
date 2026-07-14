@@ -68,7 +68,7 @@
         <!-- NAV TABS -->
         <nav class="nav-tabs" id="navTabs">
             <button class="tab-btn active" data-tab="stock">📦 Stock</button>
-            <button class="tab-btn" data-tab="editar">✏️ Editar</button>
+            <button class="tab-btn" data-tab="editar">✏️ Ver/Editar</button>
             <button class="tab-btn" data-tab="movimiento">📝 Registrar</button>
             <button class="tab-btn" data-tab="historial">📋 Historial</button>
             <button class="tab-btn" data-tab="categorias">📂 Categorías</button>
@@ -105,9 +105,7 @@
         <!-- CONTENT -->
         <main class="content">
 
-            <!-- ========================================= -->
             <!-- STOCK - VISTA DE TARJETAS CON CARROUSEL -->
-            <!-- ========================================= -->
             <section class="section active" id="stockSection">
                 <div class="filters">
                     <input type="text" class="search-input" placeholder="🔍 Buscar..." oninput="filterStock()">
@@ -115,83 +113,86 @@
                         <option>Todas</option>
                     </select>
                 </div>
-                <!-- GRID DE TARJETAS -->
                 <div class="stock-cards-grid" id="stockCardsContainer"></div>
             </section>
 
-            <!-- ========================================= -->
-            <!-- EDITAR CON IMÁGENES MÚLTIPLES -->
-            <!-- ========================================= -->
+            <!-- EDITAR / VER COMPONENTE -->
             <section class="section" id="editarSection">
                 <div class="form-container">
-                    <h2 class="form-title">✏️ Editar ítem</h2>
+                    <h2 class="form-title" id="editarTitulo">🔍 Buscar componente</h2>
                     <div class="form-group">
                         <label class="form-label">Buscar ítem</label>
                         <input type="text" class="form-input" id="editSearchInput" placeholder="Código o nombre..." oninput="searchItemToEdit()" autocomplete="off">
                         <div class="suggestions" id="editSuggestions"></div>
                     </div>
+
+                    <!-- CONTENEDOR QUE MUESTRA ADMIN O EMPLEADO -->
                     <div id="editFormContainer" style="display:none;">
-                        <div class="item-info" style="margin-bottom:20px;background:#E3F2FD;border-color:rgba(21,101,192,0.3);">
-                            <div class="item-info-left">
-                                <div class="item-info-name" style="color:var(--azul);">Editando: <span id="editItemName"></span></div>
-                                <div class="item-info-details">Stock actual: <span id="editItemStock"></span> <span id="editItemUnit"></span></div>
+
+                        <!-- ========== VISTA ADMIN: FORMULARIO DE EDICIÓN ========== -->
+                        <div id="editFormAdmin">
+                            <div class="item-info" style="margin-bottom:20px;background:#E3F2FD;border-color:rgba(21,101,192,0.3);position:relative;">
+                                <div class="item-info-left">
+                                    <div class="item-info-name" style="color:var(--azul);">✏️ Editando: <span id="editItemName"></span></div>
+                                    <div class="item-info-details">Stock actual: <span id="editItemStock"></span> <span id="editItemUnit"></span></div>
+                                </div>
+                                <button class="edit-close-btn" onclick="cerrarVistaComponente()" title="Cerrar">×</button>
                             </div>
-                        </div>
-                        <div class="form-grid">
-                            <div class="form-group"><label class="form-label">Código</label><input type="text" class="form-input" id="editCodigo"></div>
-                            <div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="editDescripcion"></div>
-                        </div>
-                        <div class="form-grid-3">
-                            <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="editCategoria"></div>
-                            <div class="form-group"><label class="form-label">Unidad</label><select class="form-input" id="editUnidad"><option>Unidad</option><option>Par</option><option>Kg</option><option>Litro</option><option>Bidón</option><option>Metro</option><option>Caja</option><option>Bolsa</option></select></div>
-                            <div class="form-group"><label class="form-label">Stock inicial</label><input type="number" class="form-input" id="editInicial" min="0"></div>
-                        </div>
-                        <div class="form-grid">
-                            <div class="form-group"><label class="form-label">Stock mínimo</label><input type="number" class="form-input" id="editMinimo" min="0"></div>
-                            <div class="form-group"><label class="form-label">Stock máximo</label><input type="number" class="form-input" id="editMaximo" min="0"></div>
-                        </div>
-                        <div class="form-grid">
-                            <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="editUbicacion"></div>
-                            <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="editPlanta"></div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Crítico (SI/NO)</label>
-                            <input type="text" class="form-input" id="editCritico" placeholder="SI o NO" maxlength="2">
-                        </div>
-                        <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="editObs"></div>
-                        
-                        <!-- IMÁGENES DEL COMPONENTE - MÚLTIPLES -->
-                        <div class="form-group">
-                            <label class="form-label">📸 Imágenes del componente</label>
-                            <div class="imagenes-container" id="editImagenesContainer">
-                                <div class="imagenes-grid" id="editImagenesGrid"></div>
-                                <div class="imagenes-upload-area" id="editImagenesUpload">
-                                    <div class="upload-placeholder" onclick="document.getElementById('editMultipleImages').click()">
-                                        <span class="upload-icon">➕</span>
-                                        <span class="upload-text">Agregar imágenes</span>
-                                        <span class="upload-hint">Máx. 5 imágenes · JPG, PNG · Hasta 5MB c/u</span>
-                                    </div>
-                                    <input type="file" id="editMultipleImages" accept="image/*" multiple style="display:none;" onchange="cargarMultiplesImagenes(event)">
-                                    <div class="upload-buttons-row">
-                                        <button type="button" class="btn-upload-option" onclick="document.getElementById('editMultipleImages').click()">📁 Galería</button>
-                                        <button type="button" class="btn-upload-option" onclick="tomarMultiplesFotos()">📷 Cámara</button>
+                            <div class="form-grid">
+                                <div class="form-group"><label class="form-label">Código</label><input type="text" class="form-input" id="editCodigo"></div>
+                                <div class="form-group"><label class="form-label">Descripción</label><input type="text" class="form-input" id="editDescripcion"></div>
+                            </div>
+                            <div class="form-grid-3">
+                                <div class="form-group"><label class="form-label">Categoría</label><input type="text" class="form-input" id="editCategoria"></div>
+                                <div class="form-group"><label class="form-label">Unidad</label><select class="form-input" id="editUnidad"><option>Unidad</option><option>Par</option><option>Kg</option><option>Litro</option><option>Bidón</option><option>Metro</option><option>Caja</option><option>Bolsa</option></select></div>
+                                <div class="form-group"><label class="form-label">Stock inicial</label><input type="number" class="form-input" id="editInicial" min="0"></div>
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group"><label class="form-label">Stock mínimo</label><input type="number" class="form-input" id="editMinimo" min="0"></div>
+                                <div class="form-group"><label class="form-label">Stock máximo</label><input type="number" class="form-input" id="editMaximo" min="0"></div>
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group"><label class="form-label">Ubicación</label><input type="text" class="form-input" id="editUbicacion"></div>
+                                <div class="form-group"><label class="form-label">Planta</label><input type="text" class="form-input" id="editPlanta"></div>
+                            </div>
+                            <div class="form-group"><label class="form-label">Crítico (SI/NO)</label><input type="text" class="form-input" id="editCritico" placeholder="SI o NO" maxlength="2"></div>
+                            <div class="form-group"><label class="form-label">Observaciones</label><input type="text" class="form-input" id="editObs"></div>
+                            
+                            <!-- IMÁGENES DEL COMPONENTE -->
+                            <div class="form-group">
+                                <label class="form-label">📸 Imágenes del componente</label>
+                                <div class="imagenes-container" id="editImagenesContainer">
+                                    <div class="imagenes-grid" id="editImagenesGrid"></div>
+                                    <div class="imagenes-upload-area" id="editImagenesUpload">
+                                        <div class="upload-placeholder" onclick="document.getElementById('editMultipleImages').click()">
+                                            <span class="upload-icon">➕</span>
+                                            <span class="upload-text">Agregar imágenes</span>
+                                            <span class="upload-hint">Máx. 5 imágenes · JPG, PNG · Hasta 5MB c/u</span>
+                                        </div>
+                                        <input type="file" id="editMultipleImages" accept="image/*" multiple style="display:none;" onchange="cargarMultiplesImagenes(event)">
+                                        <div class="upload-buttons-row">
+                                            <button type="button" class="btn-upload-option" onclick="document.getElementById('editMultipleImages').click()">📁 Galería</button>
+                                            <button type="button" class="btn-upload-option" onclick="tomarMultiplesFotos()">📷 Cámara</button>
+                                        </div>
                                     </div>
                                 </div>
+                                <div id="editImagenesInfo" style="font-size:11px;color:var(--sub);margin-top:6px;"></div>
                             </div>
-                            <div id="editImagenesInfo" style="font-size:11px;color:var(--sub);margin-top:6px;"></div>
+                            
+                            <div class="btn-group">
+                                <button class="btn btn-cancel" onclick="cancelEdit()">Cancelar</button>
+                                <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar</button>
+                            </div>
                         </div>
-                        
-                        <div class="btn-group">
-                            <button class="btn btn-cancel" onclick="cancelEdit()">Cancelar</button>
-                            <button class="btn btn-primary" onclick="saveEdit()">💾 Guardar</button>
-                        </div>
+
+                        <!-- ========== VISTA EMPLEADO: TARJETA VISUAL ========== -->
+                        <div id="editFormEmpleado" style="display:none;"></div>
+
                     </div>
                 </div>
             </section>
 
-            <!-- ========================================= -->
             <!-- MOVIMIENTO -->
-            <!-- ========================================= -->
             <section class="section" id="movimientoSection">
                 <div class="form-container">
                     <h2 class="form-title">📝 Registrar movimiento</h2>
@@ -251,23 +252,17 @@
                 </div>
             </section>
 
-            <!-- ========================================= -->
             <!-- HISTORIAL -->
-            <!-- ========================================= -->
             <section class="section" id="historialSection">
                 <div id="historyList" class="history-list"></div>
             </section>
 
-            <!-- ========================================= -->
             <!-- CATEGORÍAS -->
-            <!-- ========================================= -->
             <section class="section" id="categoriasSection">
                 <div id="categoriasList"></div>
             </section>
 
-            <!-- ========================================= -->
             <!-- PLANILLA DE TRABAJO -->
-            <!-- ========================================= -->
             <section class="section" id="planillaSection">
                 <div class="form-container">
                     <h2 class="form-title">📋 Planilla de Trabajo</h2>
@@ -287,9 +282,7 @@
                 </div>
             </section>
 
-            <!-- ========================================= -->
             <!-- PLANILLAS RECIBIDAS (ADMIN) -->
-            <!-- ========================================= -->
             <section class="section" id="planillasRecibidasSection">
                 <div class="form-container" style="max-width:100%;">
                     <h2 class="form-title">📊 Planillas Recibidas</h2>
@@ -303,9 +296,7 @@
                 </div>
             </section>
 
-            <!-- ========================================= -->
             <!-- ÓRDENES DE TRABAJO (ADMIN) -->
-            <!-- ========================================= -->
             <section class="section" id="ordenesSection">
                 <div class="card-ordenes">
                     <div class="card-header-ordenes">
@@ -333,9 +324,7 @@
                 </div>
             </section>
 
-            <!-- ========================================= -->
             <!-- ADMIN -->
-            <!-- ========================================= -->
             <section class="section" id="adminSection">
                 <div class="form-container">
                     <h2 class="form-title">⚙️ Administración</h2>
@@ -351,14 +340,10 @@
         </main>
     </div>
 
-    <!-- ========================================= -->
     <!-- TOAST -->
-    <!-- ========================================= -->
     <div class="toast" id="toast"></div>
 
-    <!-- ========================================= -->
     <!-- MODAL IMPORT -->
-    <!-- ========================================= -->
     <div class="modal-overlay" id="importModal">
         <div class="modal">
             <div class="modal-header"><span class="modal-title">📂 Importar desde Excel</span><button class="modal-close" onclick="closeImportModal()">×</button></div>
@@ -376,9 +361,7 @@
         </div>
     </div>
 
-    <!-- ========================================= -->
     <!-- MODAL BACKUP -->
-    <!-- ========================================= -->
     <div class="modal-overlay" id="backupModal">
         <div class="modal">
             <div class="modal-header"><span class="modal-title">💾 Backup</span><button class="modal-close" onclick="closeBackupModal()">×</button></div>
@@ -395,9 +378,7 @@
         </div>
     </div>
 
-    <!-- ========================================= -->
     <!-- MODAL ÓRDENES DE TRABAJO -->
-    <!-- ========================================= -->
     <div class="modal-overlay" id="modalOT">
         <div class="modal modal-ot">
             <div class="modal-header"><span class="modal-title" id="modalTitleOT">➕ Nueva Orden de Trabajo</span><button class="modal-close" onclick="cerrarModalOT()">×</button></div>
@@ -417,9 +398,7 @@
         </div>
     </div>
 
-    <!-- ========================================= -->
     <!-- MODAL IMPORTAR ÓRDENES -->
-    <!-- ========================================= -->
     <div class="modal-overlay" id="importModalOT">
         <div class="modal">
             <div class="modal-header"><span class="modal-title">📤 Importar desde XLSX</span><button class="modal-close" onclick="cerrarImportadorOT()">×</button></div>
@@ -433,9 +412,6 @@
         </div>
     </div>
 
-    <!-- ========================================= -->
-    <!-- SCRIPTS -->
-    <!-- ========================================= -->
     <script src="app.js"></script>
 </body>
 </html>
