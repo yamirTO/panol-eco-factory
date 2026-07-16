@@ -2,7 +2,6 @@
 //  CONFIGURACIÓN - CONECTADO AL SERVIDOR EN RENDER
 // ============================================================
 const API_URL = 'https://panol-eco-factory.onrender.com';
-const CODIGO_PANOL = 'ECO-FACTORY-2024';
 
 // ============================================================
 //  USUARIOS LOCALES (solo admin para emergencias sin conexión)
@@ -139,18 +138,9 @@ function apiCall(endpoint, options = {}) {
 //  AUTENTICACIÓN
 // ============================================================
 function doLogin() {
-    const codigoPanol = document.getElementById('codigoPanol').value.trim();
     const username = document.getElementById('loginUser').value.trim();
     const password = document.getElementById('loginPass').value.trim();
 
-    if (!codigoPanol) {
-        showLoginError('Ingresá el código de pañol');
-        return;
-    }
-    if (codigoPanol !== CODIGO_PANOL) {
-        showLoginError('Código de pañol incorrecto');
-        return;
-    }
     if (!username || !password) {
         showLoginError('Ingresá usuario y contraseña');
         return;
@@ -162,7 +152,7 @@ function doLogin() {
     fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, codigoPanol })
+        body: JSON.stringify({ username, password })
     })
     .then(res => res.json())
     .then(data => {
@@ -253,7 +243,6 @@ function doLogout() {
     document.getElementById('appScreen').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('loginPass').value = '';
-    document.getElementById('codigoPanol').value = '';
     document.getElementById('loginError').className = 'login-error';
     detenerPing();
 }
@@ -613,7 +602,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && document.
 setTimeout(() => { if (document.getElementById('ordenesSection')) { initOrdenes(); cargarSelectoresOT(); } }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
-console.log('🔑 Código de Pañol: ' + CODIGO_PANOL);
 console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO');
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
 console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
