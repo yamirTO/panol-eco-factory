@@ -133,7 +133,10 @@ function apiCall(endpoint, options = {}) {
             ...options,
             headers: { 'Content-Type': 'application/json', 'Authorization': token, ...(options.headers || {}) }
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Error ' + res.status);
+            return res.json();
+        })
         .then(data => {
             if (data.error) throw new Error(data.error);
             return data;
@@ -211,33 +214,53 @@ function loginLocal(username) {
     localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
     mostrarApp(data);
     
-    // ✅ INTENTAR CARGAR DATOS DEL SERVIDOR PRIMERO (incluso en modo local)
-    fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
-        .then(res => res.json())
-        .then(dataItems => {
-            if (dataItems && dataItems.length > 0) {
-                items = dataItems;
-                localStorage.setItem('panol_items', JSON.stringify(items));
-                // Cargar movimientos también
-                fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
-                    .then(res => res.json())
-                    .then(dataMovs => {
-                        if (dataMovs) {
-                            movs = dataMovs;
-                            localStorage.setItem('panol_movs', JSON.stringify(movs));
-                        }
-                        renderStock();
-                        renderHistory();
-                        renderCategorias();
-                        updateKPIsLocales();
-                        showToast('✅ Datos sincronizados desde servidor');
-                    })
-                    .catch(() => cargarDatosLocalesFallback());
-            } else {
-                cargarDatosLocalesFallback();
-            }
-        })
-        .catch(() => cargarDatosLocalesFallback());
+    // ✅ INTENTAR CARGAR DATOS DEL SERVIDOR PRIMERO
+    mostrarMensajeCarga('🔄 Conectando con servidor...');
+    
+    fetch(`${API_URL}/api/items`, { 
+        headers: { 'Authorization': token },
+        signal: AbortSignal.timeout(8000)
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Error ' + res.status);
+        return res.json();
+    })
+    .then(dataItems => {
+        if (dataItems && dataItems.length > 0) {
+            items = dataItems;
+            localStorage.setItem('panol_items', JSON.stringify(items));
+            // Cargar movimientos también
+            return fetch(`${API_URL}/api/movimientos`, { 
+                headers: { 'Authorization': token },
+                signal: AbortSignal.timeout(8000)
+            })
+            .then(res => res.json())
+            .then(dataMovs => {
+                if (dataMovs) {
+                    movs = dataMovs;
+                    localStorage.setItem('panol_movs', JSON.stringify(movs));
+                }
+                mostrarMensajeCarga('✅ Datos sincronizados desde servidor (' + items.length + ' ítems)');
+                renderStock();
+                renderHistory();
+                renderCategorias();
+                updateKPIsLocales();
+                showToast('✅ ' + items.length + ' ítems cargados');
+            });
+        } else {
+            throw new Error('Sin datos en el servidor');
+        }
+    })
+    .catch(err => {
+        console.warn('⚠️ Error al cargar del servidor:', err.message);
+        mostrarMensajeCarga('⚠️ Usando datos locales (caché)');
+        cargarDatosLocalesFallback();
+        if (items.length === 0) {
+            showToast('⚠️ Sin datos locales. Importá un Excel desde Admin.', false);
+        } else {
+            showToast('⚠️ Modo local (' + items.length + ' ítems en caché)');
+        }
+    });
     
     iniciarPing();
     initPlanillaFecha();
@@ -245,27 +268,38 @@ function loginLocal(username) {
     cargarSelectoresOT();
 }
 
+function mostrarMensajeCarga(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast show ' + (msg.includes('✅') ? 'toast-success' : 'toast-error');
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
 function cargarDatosLocalesFallback() {
-    // Si falla la conexión, usar localStorage
     const savedItems = localStorage.getItem('panol_items');
     if (savedItems) {
-        try { items = JSON.parse(savedItems); } catch(e) {}
+        try { items = JSON.parse(savedItems); } catch(e) { items = []; }
     } else {
-        // Datos por defecto
-        items = [
-            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
-        ];
-        localStorage.setItem('panol_items', JSON.stringify(items));
+        // Datos por defecto solo para admin local
+        if (currentUser?.rol === 'admin') {
+            items = [
+                { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+                { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+                { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+                { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+                { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+                { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+                { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+                { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
+            ];
+            localStorage.setItem('panol_items', JSON.stringify(items));
+        } else {
+            items = [];
+        }
     }
     const savedMovs = localStorage.getItem('panol_movs');
-    if (savedMovs) { try { movs = JSON.parse(savedMovs); } catch(e) {} }
+    if (savedMovs) { try { movs = JSON.parse(savedMovs); } catch(e) { movs = []; } }
     renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
 }
 
@@ -324,7 +358,7 @@ function loadDataFromServer() {
             renderCategorias();
             document.getElementById('syncStatus').textContent = '●'; 
             document.getElementById('syncStatus').className = 'sync-status';
-            showToast('✅ Datos cargados (' + items.length + ' ítems)');
+            showToast('✅ Datos cargados (' + items.length + ' ítems, ' + movs.length + ' movimientos)');
         })
         .catch(err => { 
             showLoading(false); 
@@ -345,42 +379,83 @@ function updateKPIsFromStats(stats) {
 }
 
 // ============================================================
-//  🆕 SINCRONIZACIÓN MANUAL (BOTÓN)
+//  🆕 SINCRONIZACIÓN MANUAL (BOTÓN) - MEJORADA
 // ============================================================
 function sincronizarManual() {
     if (!token) {
-        showToast('Sin conexión al servidor', false);
+        showToast('⚠️ Sin sesión activa', false);
         return;
     }
+    
+    // Animación del botón
+    const btn = document.querySelector('.sync-btn');
+    if (btn) btn.classList.add('sync-active');
+    
     showLoading(true);
+    mostrarMensajeCarga('🔄 Sincronizando con servidor...');
+    
     Promise.all([
-        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } }),
-        fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
+        fetch(`${API_URL}/api/items`, { 
+            headers: { 'Authorization': token },
+            signal: AbortSignal.timeout(10000)
+        }),
+        fetch(`${API_URL}/api/movimientos`, { 
+            headers: { 'Authorization': token },
+            signal: AbortSignal.timeout(10000)
+        })
     ])
     .then(async ([itemsRes, movsRes]) => {
-        if (!itemsRes.ok || !movsRes.ok) throw new Error('Error en la respuesta del servidor');
+        if (!itemsRes.ok) throw new Error('Error ' + itemsRes.status + ' en /items');
+        if (!movsRes.ok) throw new Error('Error ' + movsRes.status + ' en /movimientos');
+        
         const itemsData = await itemsRes.json();
         const movsData = await movsRes.json();
-        if (itemsData && itemsData.length > 0) {
-            items = itemsData;
-            movs = movsData || [];
-            localStorage.setItem('panol_items', JSON.stringify(items));
-            localStorage.setItem('panol_movs', JSON.stringify(movs));
-            renderStock();
-            renderHistory();
-            renderCategorias();
-            updateKPIsLocales();
-            showLoading(false);
-            showToast('✅ Sincronizado (' + items.length + ' ítems, ' + movs.length + ' movimientos)');
-        } else {
-            showLoading(false);
-            showToast('⚠️ Sin datos en el servidor', false);
+        
+        if (!itemsData || itemsData.length === 0) {
+            throw new Error('El servidor devolvió 0 ítems');
         }
+        
+        // Actualizar datos
+        const itemsAntes = items.length;
+        items = itemsData;
+        movs = movsData || [];
+        
+        // Guardar en localStorage como caché
+        localStorage.setItem('panol_items', JSON.stringify(items));
+        localStorage.setItem('panol_movs', JSON.stringify(movs));
+        
+        // Actualizar UI
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        updateKPIsLocales();
+        
+        showLoading(false);
+        if (btn) btn.classList.remove('sync-active');
+        
+        const msg = `✅ Sincronizado: ${items.length} ítems, ${movs.length} movimientos`;
+        mostrarMensajeCarga(msg);
+        showToast(msg);
+        
+        document.getElementById('syncStatus').textContent = '●';
+        document.getElementById('syncStatus').className = 'sync-status';
     })
     .catch(err => {
+        console.error('❌ Error en sincronización:', err);
         showLoading(false);
-        showToast('❌ Error al sincronizar: ' + err.message, false);
-        console.error(err);
+        if (btn) btn.classList.remove('sync-active');
+        
+        document.getElementById('syncStatus').textContent = '⚠️';
+        document.getElementById('syncStatus').className = 'sync-status error';
+        
+        // Si hay datos en localStorage, usarlos
+        if (items.length > 0) {
+            mostrarMensajeCarga('⚠️ Error: usando datos locales (' + items.length + ' ítems)');
+            showToast('⚠️ Error al sincronizar. Usando caché local.', false);
+        } else {
+            mostrarMensajeCarga('❌ Error: ' + err.message);
+            showToast('❌ Error al sincronizar: ' + err.message, false);
+        }
     });
 }
 
@@ -414,19 +489,23 @@ function sincronizarStock() {
     if (currentUser && USUARIOS_LOCALES[currentUser.username]) return;
     
     fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token }, signal: AbortSignal.timeout(5000) })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error('Error ' + res.status);
+            return res.json();
+        })
         .then(data => {
             if (data && data.length > 0) {
                 const nuevosItems = data;
                 // Verificar si hay cambios
                 if (JSON.stringify(items) !== JSON.stringify(nuevosItems)) {
+                    const itemsAntes = items.length;
                     items = nuevosItems;
                     localStorage.setItem('panol_items', JSON.stringify(items));
                     // Solo actualizar vista si estamos en tabs que lo necesitan
                     if (currentTab === 'stock') renderStock();
                     if (currentTab === 'categorias') renderCategorias();
                     updateKPIsLocales();
-                    console.log('🔄 Stock actualizado automáticamente (' + items.length + ' ítems)');
+                    console.log('🔄 Stock actualizado automáticamente (' + items.length + ' ítems, antes ' + itemsAntes + ')');
                 }
             }
         })
@@ -483,7 +562,7 @@ function switchTab(tab) {
 function showToast(msg, success = true) {
     const toast = document.getElementById('toast'); toast.textContent = msg;
     toast.className = 'toast show ' + (success ? 'toast-success' : 'toast-error');
-    clearTimeout(toast._timeout); toast._timeout = setTimeout(() => toast.classList.remove('show'), 3500);
+    clearTimeout(toast._timeout); toast._timeout = setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
 function filterByKPI(filter) { activeKpiFilter = filter; switchTab('stock'); const si = document.querySelector('.search-input'); const cs = document.querySelector('.category-select'); if (si) si.value = ''; if (cs) cs.value = 'Todas'; renderStock(); }
@@ -501,7 +580,10 @@ function renderStock() {
     if (activeKpiFilter === 'sinstock') filtrados = filtrados.filter(i => stockActual(i) <= 0);
     else if (activeKpiFilter === 'criticos') filtrados = filtrados.filter(i => esCritico(i));
     const container = document.getElementById('stockCardsContainer'); if (!container) return; container.innerHTML = '';
-    if (filtrados.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Sin resultados</div></div>'; return; }
+    if (filtrados.length === 0) { 
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Sin resultados</div><div class="empty-sub" style="font-size:12px;color:var(--sub);margin-top:4px;">' + (items.length === 0 ? '⚠️ No hay ítems cargados. Usá "Sincronizar" 🔄 o importá desde Admin.' : '') + '</div></div>'; 
+        return; 
+    }
     filtrados.forEach((item) => {
         const actual = stockActual(item); const e = estadoItem(actual, item.minimo, item);
         const todasImagenes = []; if (item.imagenes && item.imagenes.length > 0) todasImagenes.push(...item.imagenes); else if (item.imagen) todasImagenes.push(item.imagen);
@@ -715,29 +797,47 @@ if (savedToken && savedUser) {
                 token = savedToken;
                 mostrarApp(currentUser);
                 // ✅ Intentar cargar desde servidor incluso en modo local
-                fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
-                    .then(res => res.json())
-                    .then(dataItems => {
-                        if (dataItems && dataItems.length > 0) {
-                            items = dataItems;
-                            localStorage.setItem('panol_items', JSON.stringify(items));
-                            fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
-                                .then(res => res.json())
-                                .then(dataMovs => {
-                                    if (dataMovs) {
-                                        movs = dataMovs;
-                                        localStorage.setItem('panol_movs', JSON.stringify(movs));
-                                    }
-                                    renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
-                                    showToast('✅ Sesión restaurada (sincronizada)');
-                                })
-                                .catch(() => { cargarDatosLocalesFallback(); showToast('⚠️ Modo local (caché)'); });
-                        } else {
-                            cargarDatosLocalesFallback();
-                            showToast('⚠️ Modo local (caché)');
-                        }
-                    })
-                    .catch(() => { cargarDatosLocalesFallback(); showToast('⚠️ Modo local (caché)'); });
+                mostrarMensajeCarga('🔄 Conectando con servidor...');
+                fetch(`${API_URL}/api/items`, { 
+                    headers: { 'Authorization': token },
+                    signal: AbortSignal.timeout(8000)
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error('Error ' + res.status);
+                    return res.json();
+                })
+                .then(dataItems => {
+                    if (dataItems && dataItems.length > 0) {
+                        items = dataItems;
+                        localStorage.setItem('panol_items', JSON.stringify(items));
+                        return fetch(`${API_URL}/api/movimientos`, { 
+                            headers: { 'Authorization': token },
+                            signal: AbortSignal.timeout(8000)
+                        })
+                        .then(res => res.json())
+                        .then(dataMovs => {
+                            if (dataMovs) {
+                                movs = dataMovs;
+                                localStorage.setItem('panol_movs', JSON.stringify(movs));
+                            }
+                            mostrarMensajeCarga('✅ Datos sincronizados (' + items.length + ' ítems)');
+                            renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
+                            showToast('✅ ' + items.length + ' ítems cargados');
+                        });
+                    } else {
+                        throw new Error('Sin datos en el servidor');
+                    }
+                })
+                .catch(err => {
+                    console.warn('⚠️ Error al cargar del servidor:', err.message);
+                    mostrarMensajeCarga('⚠️ Usando datos locales (caché)');
+                    cargarDatosLocalesFallback();
+                    if (items.length === 0) {
+                        showToast('⚠️ Sin datos. Usá "Sincronizar" 🔄 o importá desde Admin.', false);
+                    } else {
+                        showToast('⚠️ Modo local (' + items.length + ' ítems en caché)');
+                    }
+                });
                 iniciarPing();
                 initPlanillaFecha();
                 initOrdenes();
@@ -769,5 +869,6 @@ console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO')
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
 console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
 console.log('🔄 Sincronización automática para TODOS los usuarios');
+console.log('📱 Si ves "sin datos", presioná el botón 🔄 para sincronizar');
 
 function verDatosOT() { console.log('📋 Órdenes:', ordenes.length); console.log('📦 Ítems:', items.length); console.log('🖼️ Ítems con imágenes:', items.filter(i => i.imagenes && i.imagenes.length > 0).length); console.log('🎠 Carrousel intervals activos:', Object.keys(carrouselIntervals).length); }
