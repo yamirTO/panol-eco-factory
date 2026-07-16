@@ -39,7 +39,7 @@ let carrouselIntervals = {};
 let planillas = JSON.parse(localStorage.getItem('panol_planillas')) || [];
 let planillasInterval = null;
 
-// POLLING DE STOCK (NUEVO)
+// POLLING DE STOCK
 let stockPollingInterval = null;
 
 // ÓRDENES DE TRABAJO
@@ -95,7 +95,10 @@ function estadoItem(actual, minimo, item) {
 //  API HELPER
 // ============================================================
 function apiCall(endpoint, options = {}) {
-    if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+    // Si estamos en modo local (sin token o token local)
+    const isLocal = !token || (currentUser && USUARIOS_LOCALES[currentUser.username]);
+    
+    if (isLocal) {
         if (endpoint === '/api/items') return Promise.resolve(items);
         if (endpoint === '/api/movimientos') return Promise.resolve(movs);
         if (endpoint === '/api/stats') {
@@ -207,11 +210,63 @@ function loginLocal(username) {
     localStorage.setItem('panol_token', token);
     localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
     mostrarApp(data);
-    cargarDatosLocales();
+    
+    // ✅ INTENTAR CARGAR DATOS DEL SERVIDOR PRIMERO (incluso en modo local)
+    fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
+        .then(res => res.json())
+        .then(dataItems => {
+            if (dataItems && dataItems.length > 0) {
+                items = dataItems;
+                localStorage.setItem('panol_items', JSON.stringify(items));
+                // Cargar movimientos también
+                fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
+                    .then(res => res.json())
+                    .then(dataMovs => {
+                        if (dataMovs) {
+                            movs = dataMovs;
+                            localStorage.setItem('panol_movs', JSON.stringify(movs));
+                        }
+                        renderStock();
+                        renderHistory();
+                        renderCategorias();
+                        updateKPIsLocales();
+                        showToast('✅ Datos sincronizados desde servidor');
+                    })
+                    .catch(() => cargarDatosLocalesFallback());
+            } else {
+                cargarDatosLocalesFallback();
+            }
+        })
+        .catch(() => cargarDatosLocalesFallback());
+    
     iniciarPing();
     initPlanillaFecha();
     initOrdenes();
     cargarSelectoresOT();
+}
+
+function cargarDatosLocalesFallback() {
+    // Si falla la conexión, usar localStorage
+    const savedItems = localStorage.getItem('panol_items');
+    if (savedItems) {
+        try { items = JSON.parse(savedItems); } catch(e) {}
+    } else {
+        // Datos por defecto
+        items = [
+            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
+        ];
+        localStorage.setItem('panol_items', JSON.stringify(items));
+    }
+    const savedMovs = localStorage.getItem('panol_movs');
+    if (savedMovs) { try { movs = JSON.parse(savedMovs); } catch(e) {} }
+    renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
 }
 
 function mostrarApp(data) {
@@ -251,36 +306,131 @@ function showLoginError(msg) { const el = document.getElementById('loginError');
 function showLoading(show) { document.getElementById('loadingOverlay').className = show ? 'loading-overlay show' : 'loading-overlay'; }
 
 // ============================================================
-//  CARGAR DATOS LOCALES
+//  CARGAR DATOS DEL SERVIDOR (AHORA PARA TODOS LOS USUARIOS)
 // ============================================================
-function cargarDatosLocales() {
-    const savedItems = localStorage.getItem('panol_items');
-    if (savedItems) {
-        try { items = JSON.parse(savedItems); } catch(e) {}
-    } else {
-        items = [
-            { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-            { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-            { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-            { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
-        ];
-        localStorage.setItem('panol_items', JSON.stringify(items));
-    }
-    const savedMovs = localStorage.getItem('panol_movs');
-    if (savedMovs) { try { movs = JSON.parse(savedMovs); } catch(e) {} }
-    renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
+function loadDataFromServer() {
+    showLoading(true);
+    Promise.all([apiCall('/api/items'), apiCall('/api/movimientos'), apiCall('/api/stats')])
+        .then(([itemsData, movsData, statsData]) => {
+            items = itemsData || [];
+            movs = movsData || [];
+            // Guardar en localStorage como caché
+            localStorage.setItem('panol_items', JSON.stringify(items));
+            localStorage.setItem('panol_movs', JSON.stringify(movs));
+            showLoading(false);
+            updateKPIsFromStats(statsData); 
+            renderStock(); 
+            renderHistory(); 
+            renderCategorias();
+            document.getElementById('syncStatus').textContent = '●'; 
+            document.getElementById('syncStatus').className = 'sync-status';
+            showToast('✅ Datos cargados (' + items.length + ' ítems)');
+        })
+        .catch(err => { 
+            showLoading(false); 
+            document.getElementById('syncStatus').textContent = '⚠️'; 
+            document.getElementById('syncStatus').className = 'sync-status error'; 
+            showToast('❌ Error: ' + err.message, false);
+            // Fallback a datos locales
+            cargarDatosLocalesFallback();
+        });
 }
 
-function updateKPIsLocales() {
-    document.getElementById('kpiTotal').textContent = items.length;
-    document.getElementById('kpiSinStock').textContent = items.filter(i => stockActual(i) <= 0).length;
-    document.getElementById('kpiCriticos').textContent = items.filter(i => esCritico(i)).length;
-    document.getElementById('kpiCategorias').textContent = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length;
-    document.getElementById('kpiMovs').textContent = movs.length;
+function updateKPIsFromStats(stats) {
+    document.getElementById('kpiTotal').textContent = stats.totalItems || 0;
+    document.getElementById('kpiSinStock').textContent = stats.sinStock || 0;
+    document.getElementById('kpiCriticos').textContent = stats.criticos || 0;
+    document.getElementById('kpiCategorias').textContent = stats.categorias || 0;
+    document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
+}
+
+// ============================================================
+//  🆕 SINCRONIZACIÓN MANUAL (BOTÓN)
+// ============================================================
+function sincronizarManual() {
+    if (!token) {
+        showToast('Sin conexión al servidor', false);
+        return;
+    }
+    showLoading(true);
+    Promise.all([
+        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } }),
+        fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
+    ])
+    .then(async ([itemsRes, movsRes]) => {
+        if (!itemsRes.ok || !movsRes.ok) throw new Error('Error en la respuesta del servidor');
+        const itemsData = await itemsRes.json();
+        const movsData = await movsRes.json();
+        if (itemsData && itemsData.length > 0) {
+            items = itemsData;
+            movs = movsData || [];
+            localStorage.setItem('panol_items', JSON.stringify(items));
+            localStorage.setItem('panol_movs', JSON.stringify(movs));
+            renderStock();
+            renderHistory();
+            renderCategorias();
+            updateKPIsLocales();
+            showLoading(false);
+            showToast('✅ Sincronizado (' + items.length + ' ítems, ' + movs.length + ' movimientos)');
+        } else {
+            showLoading(false);
+            showToast('⚠️ Sin datos en el servidor', false);
+        }
+    })
+    .catch(err => {
+        showLoading(false);
+        showToast('❌ Error al sincronizar: ' + err.message, false);
+        console.error(err);
+    });
+}
+
+// ============================================================
+//  POLLING DE STOCK (AHORA PARA TODOS)
+// ============================================================
+function iniciarPollingStock() {
+    detenerPollingStock();
+    // ✅ Ahora siempre que haya token, incluso en modo local
+    if (!token) return;
+    // Si es modo local, no hacemos polling (ya que no hay servidor real)
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) return;
+    
+    stockPollingInterval = setInterval(() => {
+        if (!document.hidden) {
+            sincronizarStock();
+        }
+    }, 15000); // 15 segundos
+}
+
+function detenerPollingStock() {
+    if (stockPollingInterval) {
+        clearInterval(stockPollingInterval);
+        stockPollingInterval = null;
+    }
+}
+
+function sincronizarStock() {
+    if (!token) return;
+    // No sincronizar en modo local
+    if (currentUser && USUARIOS_LOCALES[currentUser.username]) return;
+    
+    fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token }, signal: AbortSignal.timeout(5000) })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.length > 0) {
+                const nuevosItems = data;
+                // Verificar si hay cambios
+                if (JSON.stringify(items) !== JSON.stringify(nuevosItems)) {
+                    items = nuevosItems;
+                    localStorage.setItem('panol_items', JSON.stringify(items));
+                    // Solo actualizar vista si estamos en tabs que lo necesitan
+                    if (currentTab === 'stock') renderStock();
+                    if (currentTab === 'categorias') renderCategorias();
+                    updateKPIsLocales();
+                    console.log('🔄 Stock actualizado automáticamente (' + items.length + ' ítems)');
+                }
+            }
+        })
+        .catch(() => {});
 }
 
 // ============================================================
@@ -296,62 +446,14 @@ function hacerPing() {
 }
 
 // ============================================================
-//  CARGAR DATOS DEL SERVIDOR
+//  UPDATE KPIS LOCALES
 // ============================================================
-function loadDataFromServer() {
-    showLoading(true);
-    Promise.all([apiCall('/api/items'), apiCall('/api/movimientos'), apiCall('/api/stats')])
-        .then(([itemsData, movsData, statsData]) => {
-            items = itemsData; movs = movsData; showLoading(false);
-            updateKPIsFromStats(statsData); renderStock(); renderHistory(); renderCategorias();
-            document.getElementById('syncStatus').textContent = '●'; document.getElementById('syncStatus').className = 'sync-status';
-            showToast('✅ Datos cargados');
-        })
-        .catch(err => { showLoading(false); document.getElementById('syncStatus').textContent = '⚠️'; document.getElementById('syncStatus').className = 'sync-status error'; showToast('❌ Error: ' + err.message, false); });
-}
-
-function updateKPIsFromStats(stats) {
-    document.getElementById('kpiTotal').textContent = stats.totalItems || 0;
-    document.getElementById('kpiSinStock').textContent = stats.sinStock || 0;
-    document.getElementById('kpiCriticos').textContent = stats.criticos || 0;
-    document.getElementById('kpiCategorias').textContent = stats.categorias || 0;
-    document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
-}
-
-// ============================================================
-//  POLLING DE STOCK (NUEVO)
-// ============================================================
-function iniciarPollingStock() {
-    detenerPollingStock();
-    if (!token || (currentUser && USUARIOS_LOCALES[currentUser.username])) return;
-    stockPollingInterval = setInterval(() => {
-        if (!document.hidden) {
-            sincronizarStock();
-        }
-    }, 10000);
-}
-
-function detenerPollingStock() {
-    if (stockPollingInterval) {
-        clearInterval(stockPollingInterval);
-        stockPollingInterval = null;
-    }
-}
-
-function sincronizarStock() {
-    if (!token) return;
-    apiCall('/api/items')
-        .then(data => {
-            const nuevosItems = data || [];
-            if (JSON.stringify(items) !== JSON.stringify(nuevosItems)) {
-                items = nuevosItems;
-                if (currentTab === 'stock') renderStock();
-                if (currentTab === 'categorias') renderCategorias();
-                updateKPIsLocales();
-                console.log('🔄 Stock actualizado automáticamente');
-            }
-        })
-        .catch(() => {});
+function updateKPIsLocales() {
+    document.getElementById('kpiTotal').textContent = items.length;
+    document.getElementById('kpiSinStock').textContent = items.filter(i => stockActual(i) <= 0).length;
+    document.getElementById('kpiCriticos').textContent = items.filter(i => esCritico(i)).length;
+    document.getElementById('kpiCategorias').textContent = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length;
+    document.getElementById('kpiMovs').textContent = movs.length;
 }
 
 // ============================================================
@@ -531,7 +633,7 @@ function limpiarFormularioMovimiento(){['codigoInput','cantidadInput','otInput',
 function renderHistory(){const c=document.getElementById('historyList');if(!movs.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Sin movimientos</div></div>';return;}c.innerHTML=movs.slice(0,100).map(m=>{const ie=m.tipo==='ENTRADA'||m.tipo==='DEVOLUCIÓN';return`<div class="history-card" style="border-left:4px solid ${ie?'var(--verdeM)':m.tipo==='SALIDA'?'var(--rojo)':'var(--gris)'};"><span class="history-date">${m.fecha}</span><span class="history-type" style="color:${ie?'var(--verdeM)':'var(--rojo)'};">${m.tipo}</span><div><div class="history-desc">${m.descripcion}</div></div><span class="history-qty" style="color:${m.tipo==='SALIDA'?'var(--rojo)':'var(--verdeM)'};">${m.tipo==='SALIDA'?'-':'+'}${m.cantidad}</span></div>`;}).join('');}
 
 // ============================================================
-//  RENDER CATEGORÍAS - CON IMAGEN Y DATOS COMPLETOS
+//  RENDER CATEGORÍAS
 // ============================================================
 function renderCategorias(){const c=document.getElementById('categoriasList');const cats=[...new Set(items.map(i=>i.categoria||'Sin categoría'))].sort();if(!cats.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">Sin categorías</div></div>';return;}let h='';cats.forEach(cat=>{const ic=items.filter(i=>(i.categoria||'Sin categoría')===cat);const io=categoriasExpandidas[cat]||false;h+=`<div class="categoria-item"><div class="categoria-header" onclick="toggleCategoria('${cat}')"><span class="categoria-toggle ${io?'open':''}">${io?'✕':'+'}</span><span class="categoria-nombre">${cat}</span><span class="categoria-cantidad">${ic.length} ítems</span></div><div class="categoria-items ${io?'open':''}">`;ic.forEach(item=>{const a=stockActual(item);const e=estadoItem(a,item.minimo,item);let ih='';if(item.imagenes&&item.imagenes.length>0)ih=`<img src="${item.imagenes[0]}" alt="${item.descripcion}" class="cat-item-img">`;else if(item.imagen)ih=`<img src="${item.imagen}" alt="${item.descripcion}" class="cat-item-img">`;else ih='<span class="cat-item-img-placeholder">📦</span>';h+=`<div class="categoria-subitem" onclick="editItemFromTable('${item.codigo}')"><div class="cat-item-img-col">${ih}</div><div class="cat-item-info"><div class="cat-item-header"><span class="cat-item-codigo">${item.codigo}</span><span class="cat-item-descripcion">${item.descripcion}</span><span class="badge cat-item-badge" style="background:${e.bg};color:${e.color};border:1px solid ${e.color}33;">${e.label}</span></div><div class="cat-item-detalles"><span class="cat-item-stock" style="color:${a<=item.minimo?e.color:'var(--verdeM)'}">Stock: <strong>${a}</strong> ${item.unidad||'u.'}</span><span class="cat-item-separador">·</span><span>Mín: <strong>${item.minimo}</strong></span><span class="cat-item-separador">·</span><span>Máx: <strong>${item.maximo}</strong></span>${item.ubicacion?`<span class="cat-item-separador">·</span><span>📌 ${item.ubicacion}</span>`:''}</div></div></div>`;});h+='</div></div>';});c.innerHTML=h;}
 function toggleCategoria(cat){categoriasExpandidas[cat]=!categoriasExpandidas[cat];renderCategorias();}
@@ -555,7 +657,7 @@ function handleFileSelect(e){if(e.target.files[0])processFile(e.target.files[0])
 function mapearColumnas(h){const m={};h.forEach((h,i)=>{const n=String(h||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'');if(n.includes('cod'))m.codigo=i;if(n.includes('desc'))m.descripcion=i;if(n.includes('stockinicial')||n==='stockinicial'||n==='stock_inicial')m.stock=i;if(n==='stock'||n==='stockactual'||n==='cantidad')m.stock=i;if(n.includes('ubic'))m.ubicacion=i;if(n.includes('plant'))m.planta=i;if(n.includes('min'))m.minimo=i;if(n.includes('max'))m.maximo=i;if(n.includes('obs')||n.includes('nota'))m.obs=i;if(n.includes('cat'))m.categoria=i;if(n.includes('unid'))m.unidad=i;if(n.includes('crit'))m.critico=i;});return m;}
 function processFile(f){const r=new FileReader();r.onload=function(e){try{const w=XLSX.read(e.target.result,{type:'array'});const ws=w.Sheets[w.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(rows.length<2){showImportError('Archivo vacío');return;}let hi=0;for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i].some(c=>typeof c==='string'&&c.trim())){hi=i;break;}}const map=mapearColumnas(rows[hi]);if(map.codigo===undefined||map.descripcion===undefined){showImportError('Columnas: Código y Descripción');return;}importData=rows.slice(hi+1).filter(r=>r[map.codigo]&&String(r[map.codigo]).trim()).map(r=>{let sv=Number(r[map.stock]??0);if(isNaN(sv))sv=0;let cv=String(r[map.critico]||'').trim().toUpperCase();if(!['SI','NO'].includes(cv))cv='NO';return{codigo:String(r[map.codigo]||'').trim(),descripcion:String(r[map.descripcion]||'').trim(),categoria:String(r[map.categoria]||'Sin categoría').trim()||'Sin categoría',unidad:String(r[map.unidad]||'Unidad').trim()||'Unidad',inicial:sv,minimo:Number(r[map.minimo]??0)||0,maximo:Number(r[map.maximo]??0)||0,ubicacion:String(r[map.ubicacion]||'').trim(),planta:String(r[map.planta]||'').trim()||'Planta 1',critico:cv,obs:String(r[map.obs]||'').trim(),imagenes:[]};});if(importData.length===0){showImportError('Sin datos válidos');return;}document.getElementById('dropZone').classList.add('loaded');document.getElementById('dropIcon').textContent='✅';document.getElementById('dropText').textContent=f.name+` (${importData.length} ítems)`;document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box success';document.getElementById('importInfo').textContent=`✓ ${importData.length} ítems listos`;const pc=document.getElementById('previewContainer');pc.style.display='block';pc.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">Vista previa (${Math.min(5,importData.length)} de ${importData.length})</div><table class="preview-table"><thead><tr><th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th></tr></thead><tbody>${importData.slice(0,5).map((r,i)=>`<tr style="background:${i%2===0?'#fff':'var(--bg)'}"><td style="font-weight:700;color:var(--verde);">${r.codigo}</td><td>${r.descripcion}</td><td style="text-align:center;font-weight:700;color:${r.inicial>0?'var(--verdeM)':'var(--rojo)'};">${r.inicial}</td><td style="text-align:center;">${r.minimo}</td><td style="text-align:center;">${r.maximo}</td><td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td></tr>`).join('')}${importData.length>5?`<tr><td colspan="6" style="text-align:center;color:var(--sub);">... y ${importData.length-5} más</td></tr>`:''}</tbody></table>`;document.getElementById('importButtons').style.display='flex';}catch(err){showImportError('Error: '+err.message);}};r.readAsArrayBuffer(f);}
 function showImportError(m){document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box error';document.getElementById('importInfo').textContent='⚠️ '+m;}
-function confirmImport(){if(!importData||currentUser?.rol!=='admin'){showToast('Sin datos',false);return;}if(currentUser&&USUARIOS_LOCALES[currentUser.username]){items=importData;movs=[];localStorage.setItem('panol_items',JSON.stringify(items));localStorage.setItem('panol_movs',JSON.stringify(movs));closeImportModal();categoriasExpandidas={};showToast('✅ '+items.length+' ítems (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}showLoading(true);const ps=importData.map(i=>{const ex=items.find(x=>x.codigo===i.codigo);if(ex)return apiCall(`/api/items/${i.codigo}`,{method:'PUT',body:JSON.stringify(i)}).catch(()=>null);else return apiCall('/api/items',{method:'POST',body:JSON.stringify(i)}).catch(()=>null);});Promise.allSettled(ps).then(r=>{showLoading(false);closeImportModal();categoriasExpandidas={};const ok=r.filter(x=>x.status==='fulfilled'&&x.value?.success!==false).length;showToast(`✅ ${ok} ítems`);loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
+function confirmImport(){if(!importData||currentUser?.rol!=='admin'){showToast('Sin datos',false);return;}if(currentUser&&USUARIOS_LOCALES[currentUser.username]){items=importData;movs=[];localStorage.setItem('panol_items',JSON.stringify(items));localStorage.setItem('panol_movs',JSON.stringify(movs));closeImportModal();categoriasExpandidas={};showToast('✅ '+items.length+' ítems (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}showLoading(true);const ps=importData.map(i=>{const ex=items.find(x=>x.codigo===i.codigo);if(ex)return apiCall(`/api/items/${i.codigo}`,{method:'PUT',body:JSON.stringify(i)}).catch(()=>null);else return apiCall('/api/items',{method:'POST',body:JSON.stringify(i)}).catch(()=>null);});Promise.allSettled(ps).then(r=>{showLoading(false);closeImportModal();categoriasExpandidas={};const ok=r.filter(x=>x.status==='fulfilled'&&x.value?.success!==false).length;showToast(`✅ ${ok} ítems importados al servidor`);loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
 
 // ============================================================
 //  PLANILLA DE TRABAJO
@@ -612,14 +714,37 @@ if (savedToken && savedUser) {
                 currentUser = { username: userData.username, rol: userData.rol, token: savedToken };
                 token = savedToken;
                 mostrarApp(currentUser);
-                cargarDatosLocales();
+                // ✅ Intentar cargar desde servidor incluso en modo local
+                fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } })
+                    .then(res => res.json())
+                    .then(dataItems => {
+                        if (dataItems && dataItems.length > 0) {
+                            items = dataItems;
+                            localStorage.setItem('panol_items', JSON.stringify(items));
+                            fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } })
+                                .then(res => res.json())
+                                .then(dataMovs => {
+                                    if (dataMovs) {
+                                        movs = dataMovs;
+                                        localStorage.setItem('panol_movs', JSON.stringify(movs));
+                                    }
+                                    renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
+                                    showToast('✅ Sesión restaurada (sincronizada)');
+                                })
+                                .catch(() => { cargarDatosLocalesFallback(); showToast('⚠️ Modo local (caché)'); });
+                        } else {
+                            cargarDatosLocalesFallback();
+                            showToast('⚠️ Modo local (caché)');
+                        }
+                    })
+                    .catch(() => { cargarDatosLocalesFallback(); showToast('⚠️ Modo local (caché)'); });
                 iniciarPing();
                 initPlanillaFecha();
                 initOrdenes();
                 cargarSelectoresOT();
-                showToast('✅ Sesión restaurada (local)');
             }
         } else {
+            // Token normal - cargar desde servidor
             currentUser = { username: userData.username, rol: userData.rol, token: savedToken };
             token = savedToken;
             mostrarApp(currentUser);
@@ -639,10 +764,10 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && document.
 setTimeout(() => { if (document.getElementById('ordenesSection')) { initOrdenes(); cargarSelectoresOT(); } }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
-console.log('🔄 Polling de stock: Cada 10 segundos');
+console.log('🔄 Polling de stock: Cada 15 segundos');
 console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO');
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
 console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
-console.log('💡 Para depurar: verDatosOT()');
+console.log('🔄 Sincronización automática para TODOS los usuarios');
 
 function verDatosOT() { console.log('📋 Órdenes:', ordenes.length); console.log('📦 Ítems:', items.length); console.log('🖼️ Ítems con imágenes:', items.filter(i => i.imagenes && i.imagenes.length > 0).length); console.log('🎠 Carrousel intervals activos:', Object.keys(carrouselIntervals).length); }
