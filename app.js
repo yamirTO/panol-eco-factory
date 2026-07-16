@@ -277,9 +277,69 @@ function mostrarMensajeCarga(msg) {
 }
 
 function cargarDatosLocalesFallback() {
+    // ✅ PRIMERO: intentar cargar del servidor si hay token y NO es modo local
+    if (token && !USUARIOS_LOCALES[currentUser?.username]) {
+        console.log('🔄 Intentando cargar del servidor en fallback...');
+        fetch(`${API_URL}/api/items`, { 
+            headers: { 'Authorization': token },
+            signal: AbortSignal.timeout(5000)
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Error ' + res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (data && data.length > 0) {
+                items = data;
+                localStorage.setItem('panol_items', JSON.stringify(items));
+                // Cargar movimientos también
+                fetch(`${API_URL}/api/movimientos`, { 
+                    headers: { 'Authorization': token },
+                    signal: AbortSignal.timeout(5000)
+                })
+                .then(res => res.json())
+                .then(movsData => {
+                    if (movsData) {
+                        movs = movsData;
+                        localStorage.setItem('panol_movs', JSON.stringify(movs));
+                    }
+                    renderStock();
+                    renderHistory();
+                    renderCategorias();
+                    updateKPIsLocales();
+                    showToast('✅ ' + items.length + ' ítems cargados del servidor');
+                })
+                .catch(() => {
+                    renderStock();
+                    renderHistory();
+                    renderCategorias();
+                    updateKPIsLocales();
+                });
+                return;
+            }
+            // Si no hay datos en el servidor, usar localStorage
+            usarLocalStorage();
+        })
+        .catch(() => {
+            console.log('⚠️ No se pudo conectar al servidor, usando localStorage');
+            usarLocalStorage();
+        });
+        return;
+    }
+    
+    // Si no hay token o es modo local, usar localStorage
+    usarLocalStorage();
+}
+
+function usarLocalStorage() {
     const savedItems = localStorage.getItem('panol_items');
     if (savedItems) {
-        try { items = JSON.parse(savedItems); } catch(e) { items = []; }
+        try { 
+            items = JSON.parse(savedItems); 
+            console.log('📦 Cargados ' + items.length + ' ítems de localStorage');
+        } catch(e) { 
+            items = []; 
+        }
     } else {
         // Datos por defecto solo para admin local
         if (currentUser?.rol === 'admin') {
@@ -299,8 +359,19 @@ function cargarDatosLocalesFallback() {
         }
     }
     const savedMovs = localStorage.getItem('panol_movs');
-    if (savedMovs) { try { movs = JSON.parse(savedMovs); } catch(e) { movs = []; } }
-    renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
+    if (savedMovs) { 
+        try { movs = JSON.parse(savedMovs); } catch(e) { movs = []; } 
+    } else {
+        movs = [];
+    }
+    renderStock(); 
+    renderHistory(); 
+    renderCategorias(); 
+    updateKPIsLocales();
+    
+    if (items.length === 0) {
+        showToast('⚠️ Sin datos. Importá un Excel desde Admin o presioná 🔄', false);
+    }
 }
 
 function mostrarApp(data) {
@@ -344,9 +415,21 @@ function showLoading(show) { document.getElementById('loadingOverlay').className
 // ============================================================
 function loadDataFromServer() {
     showLoading(true);
-    Promise.all([apiCall('/api/items'), apiCall('/api/movimientos'), apiCall('/api/stats')])
-        .then(([itemsData, movsData, statsData]) => {
-            items = itemsData || [];
+    
+    // ✅ Primero intentar con el servidor
+    Promise.all([
+        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } }),
+        fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } }),
+        fetch(`${API_URL}/api/stats`, { headers: { 'Authorization': token } })
+    ])
+    .then(async ([itemsRes, movsRes, statsRes]) => {
+        if (!itemsRes.ok) throw new Error('Error en items');
+        const itemsData = await itemsRes.json();
+        const movsData = await movsRes.json();
+        const statsData = await statsRes.json();
+        
+        if (itemsData && itemsData.length > 0) {
+            items = itemsData;
             movs = movsData || [];
             // Guardar en localStorage como caché
             localStorage.setItem('panol_items', JSON.stringify(items));
@@ -358,16 +441,25 @@ function loadDataFromServer() {
             renderCategorias();
             document.getElementById('syncStatus').textContent = '●'; 
             document.getElementById('syncStatus').className = 'sync-status';
-            showToast('✅ Datos cargados (' + items.length + ' ítems, ' + movs.length + ' movimientos)');
-        })
-        .catch(err => { 
-            showLoading(false); 
+            showToast('✅ ' + items.length + ' ítems cargados del servidor');
+        } else {
+            // El servidor devolvió 0 ítems
+            showLoading(false);
             document.getElementById('syncStatus').textContent = '⚠️'; 
-            document.getElementById('syncStatus').className = 'sync-status error'; 
-            showToast('❌ Error: ' + err.message, false);
-            // Fallback a datos locales
-            cargarDatosLocalesFallback();
-        });
+            document.getElementById('syncStatus').className = 'sync-status error';
+            showToast('⚠️ El servidor no tiene datos. Importá un Excel desde Admin.', false);
+            // Usar localStorage si tiene datos
+            usarLocalStorage();
+        }
+    })
+    .catch(err => { 
+        showLoading(false); 
+        document.getElementById('syncStatus').textContent = '⚠️'; 
+        document.getElementById('syncStatus').className = 'sync-status error'; 
+        showToast('⚠️ Sin conexión al servidor - usando caché local', false);
+        // Fallback a localStorage
+        usarLocalStorage();
+    });
 }
 
 function updateKPIsFromStats(stats) {
@@ -394,67 +486,93 @@ function sincronizarManual() {
     showLoading(true);
     mostrarMensajeCarga('🔄 Sincronizando con servidor...');
     
-    Promise.all([
-        fetch(`${API_URL}/api/items`, { 
-            headers: { 'Authorization': token },
-            signal: AbortSignal.timeout(10000)
-        }),
-        fetch(`${API_URL}/api/movimientos`, { 
-            headers: { 'Authorization': token },
-            signal: AbortSignal.timeout(10000)
-        })
-    ])
-    .then(async ([itemsRes, movsRes]) => {
-        if (!itemsRes.ok) throw new Error('Error ' + itemsRes.status + ' en /items');
-        if (!movsRes.ok) throw new Error('Error ' + movsRes.status + ' en /movimientos');
+    // Primero ver qué hay en el servidor
+    fetch(`${API_URL}/api/items`, { 
+        headers: { 'Authorization': token },
+        signal: AbortSignal.timeout(10000)
+    })
+    .then(res => {
+        if (!res.ok) throw new Error('Error ' + res.status);
+        return res.json();
+    })
+    .then(dataServidor => {
+        console.log('📦 Datos en servidor:', dataServidor.length, 'ítems');
         
-        const itemsData = await itemsRes.json();
-        const movsData = await movsRes.json();
-        
-        if (!itemsData || itemsData.length === 0) {
-            throw new Error('El servidor devolvió 0 ítems');
+        if (dataServidor && dataServidor.length > 0) {
+            // ✅ El servidor tiene datos → usarlos
+            items = dataServidor;
+            localStorage.setItem('panol_items', JSON.stringify(items));
+            
+            // Traer movimientos también
+            return fetch(`${API_URL}/api/movimientos`, { 
+                headers: { 'Authorization': token },
+                signal: AbortSignal.timeout(10000)
+            })
+            .then(res => res.json())
+            .then(movsData => {
+                if (movsData) {
+                    movs = movsData;
+                    localStorage.setItem('panol_movs', JSON.stringify(movs));
+                }
+                renderStock();
+                renderHistory();
+                renderCategorias();
+                updateKPIsLocales();
+                showLoading(false);
+                if (btn) btn.classList.remove('sync-active');
+                const msg = `✅ Sincronizado: ${items.length} ítems, ${movs.length} movimientos`;
+                mostrarMensajeCarga(msg);
+                showToast(msg);
+                document.getElementById('syncStatus').textContent = '●';
+                document.getElementById('syncStatus').className = 'sync-status';
+            });
+        } else {
+            // ❌ El servidor no tiene datos
+            showLoading(false);
+            if (btn) btn.classList.remove('sync-active');
+            showToast('⚠️ El servidor no tiene datos. Importá un Excel desde Admin.', false);
+            document.getElementById('syncStatus').textContent = '⚠️';
+            document.getElementById('syncStatus').className = 'sync-status error';
+            
+            // Ver si hay datos en localStorage para mostrar
+            const localItems = localStorage.getItem('panol_items');
+            if (localItems) {
+                try {
+                    const parsed = JSON.parse(localItems);
+                    if (parsed.length > 0) {
+                        items = parsed;
+                        renderStock();
+                        renderHistory();
+                        renderCategorias();
+                        updateKPIsLocales();
+                        showToast('⚠️ Usando datos locales (' + items.length + ' ítems en caché)', false);
+                    }
+                } catch(e) {}
+            }
         }
-        
-        // Actualizar datos
-        const itemsAntes = items.length;
-        items = itemsData;
-        movs = movsData || [];
-        
-        // Guardar en localStorage como caché
-        localStorage.setItem('panol_items', JSON.stringify(items));
-        localStorage.setItem('panol_movs', JSON.stringify(movs));
-        
-        // Actualizar UI
-        renderStock();
-        renderHistory();
-        renderCategorias();
-        updateKPIsLocales();
-        
-        showLoading(false);
-        if (btn) btn.classList.remove('sync-active');
-        
-        const msg = `✅ Sincronizado: ${items.length} ítems, ${movs.length} movimientos`;
-        mostrarMensajeCarga(msg);
-        showToast(msg);
-        
-        document.getElementById('syncStatus').textContent = '●';
-        document.getElementById('syncStatus').className = 'sync-status';
     })
     .catch(err => {
         console.error('❌ Error en sincronización:', err);
         showLoading(false);
         if (btn) btn.classList.remove('sync-active');
-        
         document.getElementById('syncStatus').textContent = '⚠️';
         document.getElementById('syncStatus').className = 'sync-status error';
+        showToast('❌ Error al conectar con el servidor', false);
         
-        // Si hay datos en localStorage, usarlos
-        if (items.length > 0) {
-            mostrarMensajeCarga('⚠️ Error: usando datos locales (' + items.length + ' ítems)');
-            showToast('⚠️ Error al sincronizar. Usando caché local.', false);
-        } else {
-            mostrarMensajeCarga('❌ Error: ' + err.message);
-            showToast('❌ Error al sincronizar: ' + err.message, false);
+        // Intentar usar localStorage
+        const localItems = localStorage.getItem('panol_items');
+        if (localItems) {
+            try {
+                const parsed = JSON.parse(localItems);
+                if (parsed.length > 0) {
+                    items = parsed;
+                    renderStock();
+                    renderHistory();
+                    renderCategorias();
+                    updateKPIsLocales();
+                    showToast('⚠️ Usando datos locales (' + items.length + ' ítems en caché)', false);
+                }
+            } catch(e) {}
         }
     });
 }
