@@ -93,6 +93,31 @@ body {
 .logout-btn { background: none; border: 1px solid #A5D6A7; color: #A5D6A7; padding: 2px 8px; border-radius: 12px; cursor: pointer; font-size: 9px; transition: var(--transition); }
 .logout-btn:active { background: rgba(255,255,255,0.1); }
 
+/* 🔄 BOTÓN DE SINCRONIZACIÓN MANUAL */
+.sync-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid #A5D6A7;
+    color: #A5D6A7;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: var(--transition);
+    line-height: 1.4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.sync-btn:hover { background: rgba(255,255,255,0.25); }
+.sync-btn:active { background: rgba(255,255,255,0.35); transform: scale(0.92); }
+.sync-btn.sync-active {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* ============================================
    NAV TABS
    ============================================ */
@@ -348,8 +373,8 @@ textarea.form-input { resize: vertical; min-height: 70px; }
     justify-content: space-between;
     gap: 12px;
     padding: 14px 18px;
-    margin-top: 40px;           /* más separación arriba */
-    margin-bottom: 15px;         /* espacio abajo */
+    margin-top: 40px;
+    margin-bottom: 15px;
     background: var(--surface);
     border-radius: 12px;
     border: 1.5px solid var(--borde);
