@@ -4,7 +4,7 @@
 const API_URL = 'https://panol-eco-factory.onrender.com';
 
 // ============================================================
-//  USUARIOS LOCALES (solo admin para emergencias sin conexión)
+//  USUARIOS LOCALES (solo para login de emergencia)
 // ============================================================
 const USUARIOS_LOCALES = {
     admin: { password: 'admin123', rol: 'admin' }
@@ -36,17 +36,17 @@ let imagenesTemporales = [];
 let carrouselIntervals = {};
 
 // PLANILLAS
-let planillas = JSON.parse(localStorage.getItem('panol_planillas')) || [];
+let planillas = [];
 let planillasInterval = null;
 
 // POLLING DE STOCK
 let stockPollingInterval = null;
 
 // ÓRDENES DE TRABAJO
-let ordenes = JSON.parse(localStorage.getItem('ot_ordenes_v2')) || [];
-let maquinasList = JSON.parse(localStorage.getItem('ot_maquinas')) || ['Torno CNC-12', 'Fresadora', 'Prensa hidráulica', 'Compresor', 'Cinta transportadora'];
-let tecnicosList = JSON.parse(localStorage.getItem('ot_tecnicos')) || ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez'];
-let modulosList = JSON.parse(localStorage.getItem('ot_modulos')) || ['Cabezal', 'Panel de control', 'Motor', 'Bomba hidráulica', 'Sistema eléctrico'];
+let ordenes = [];
+let maquinasList = ['Torno CNC-12', 'Fresadora', 'Prensa hidráulica', 'Compresor', 'Cinta transportadora'];
+let tecnicosList = ['Juan Pérez', 'María Gómez', 'Carlos López', 'Ana Martínez'];
+let modulosList = ['Cabezal', 'Panel de control', 'Motor', 'Bomba hidráulica', 'Sistema eléctrico'];
 
 // ============================================================
 //  DOM REFERENCIAS
@@ -92,13 +92,14 @@ function estadoItem(actual, minimo, item) {
 }
 
 // ============================================================
-//  API HELPER
+//  API HELPER - TODAS LAS LLAMADAS AL SERVIDOR
 // ============================================================
 function apiCall(endpoint, options = {}) {
-    // Si estamos en modo local (sin token o token local)
+    // Si estamos en modo local (sin token o fallback)
     const isLocal = !token || (currentUser && USUARIOS_LOCALES[currentUser.username]);
     
     if (isLocal) {
+        // En modo local, solo devolvemos lo que tenemos en memoria
         if (endpoint === '/api/items') return Promise.resolve(items);
         if (endpoint === '/api/movimientos') return Promise.resolve(movs);
         if (endpoint === '/api/stats') {
@@ -111,21 +112,7 @@ function apiCall(endpoint, options = {}) {
             });
         }
         if (endpoint === '/api/planillas') return Promise.resolve(planillas);
-        if (endpoint.startsWith('/api/planillas/') && options.method === 'DELETE') return Promise.resolve({ success: true });
-        if (endpoint === '/api/planillas' && options.method === 'POST') {
-            const body = JSON.parse(options.body);
-            const nuevaPlanilla = { id: Date.now(), ...body, usuario: currentUser.username, timestamp: new Date().toISOString() };
-            planillas.unshift(nuevaPlanilla);
-            localStorage.setItem('panol_planillas', JSON.stringify(planillas));
-            return Promise.resolve({ success: true, planilla: nuevaPlanilla });
-        }
-        if (endpoint === '/api/backup') return Promise.resolve({ items, movimientos: movs, planillas, usuarios: USUARIOS_LOCALES });
-        if (endpoint.startsWith('/api/items/') && options.method === 'PUT') {
-            const body = JSON.parse(options.body);
-            const idx = items.findIndex(i => i.codigo === endpoint.split('/').pop());
-            if (idx !== -1) items[idx] = body;
-            return Promise.resolve({ success: true });
-        }
+        if (endpoint === '/api/backup') return Promise.resolve({ items, movimientos: movs, planillas });
         return Promise.resolve({ success: true });
     }
 
@@ -157,7 +144,6 @@ function doLogin() {
 
     showLoading(true);
 
-    // PRIMERO intentar con el servidor SIEMPRE
     fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +153,7 @@ function doLogin() {
     .then(data => {
         showLoading(false);
         if (data.error) {
+            // Fallback a usuario local si existe
             if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
                 loginLocal(username);
                 showToast('⚠️ Modo local (sin conexión al servidor)');
@@ -177,13 +164,11 @@ function doLogin() {
         }
         token = data.token;
         currentUser = data;
-        localStorage.setItem('panol_token', token);
-        localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
         mostrarApp(data);
-        loadDataFromServer();
+        cargarTodosLosDatos();
         iniciarPing();
         initPlanillaFecha();
-        cargarPlanillasDesdeServidor().then(() => iniciarPollingPlanillas());
+        iniciarPollingPlanillas();
         iniciarPollingStock();
         initOrdenes();
         cargarSelectoresOT();
@@ -202,176 +187,30 @@ function doLogin() {
 }
 
 function loginLocal(username) {
-    const data = {
-        success: true,
-        token: 'token_local_' + username + '_' + Date.now(),
-        username: username,
-        rol: USUARIOS_LOCALES[username].rol
-    };
-    token = data.token;
-    currentUser = data;
-    localStorage.setItem('panol_token', token);
-    localStorage.setItem('panol_user', JSON.stringify({ username: data.username, rol: data.rol }));
-    mostrarApp(data);
-    
-    // ✅ INTENTAR CARGAR DATOS DEL SERVIDOR PRIMERO
-    mostrarMensajeCarga('🔄 Conectando con servidor...');
-    
-    fetch(`${API_URL}/api/items`, { 
-        headers: { 'Authorization': token },
-        signal: AbortSignal.timeout(8000)
-    })
-    .then(res => {
-        if (!res.ok) throw new Error('Error ' + res.status);
-        return res.json();
-    })
-    .then(dataItems => {
-        if (dataItems && dataItems.length > 0) {
-            items = dataItems;
-            localStorage.setItem('panol_items', JSON.stringify(items));
-            // Cargar movimientos también
-            return fetch(`${API_URL}/api/movimientos`, { 
-                headers: { 'Authorization': token },
-                signal: AbortSignal.timeout(8000)
-            })
-            .then(res => res.json())
-            .then(dataMovs => {
-                if (dataMovs) {
-                    movs = dataMovs;
-                    localStorage.setItem('panol_movs', JSON.stringify(movs));
-                }
-                mostrarMensajeCarga('✅ Datos sincronizados desde servidor (' + items.length + ' ítems)');
-                renderStock();
-                renderHistory();
-                renderCategorias();
-                updateKPIsLocales();
-                showToast('✅ ' + items.length + ' ítems cargados');
-            });
-        } else {
-            throw new Error('Sin datos en el servidor');
-        }
-    })
-    .catch(err => {
-        console.warn('⚠️ Error al cargar del servidor:', err.message);
-        mostrarMensajeCarga('⚠️ Usando datos locales (caché)');
-        cargarDatosLocalesFallback();
-        if (items.length === 0) {
-            showToast('⚠️ Sin datos locales. Importá un Excel desde Admin.', false);
-        } else {
-            showToast('⚠️ Modo local (' + items.length + ' ítems en caché)');
-        }
-    });
-    
+    token = 'token_local_' + username + '_' + Date.now();
+    currentUser = { username: username, rol: USUARIOS_LOCALES[username].rol };
+    mostrarApp(currentUser);
+    // Datos por defecto para modo local
+    items = [
+        { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+        { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+        { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+        { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+        { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+        { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
+        { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
+        { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
+    ];
+    movs = [];
+    planillas = [];
+    renderStock();
+    renderHistory();
+    renderCategorias();
+    updateKPIsLocales();
     iniciarPing();
     initPlanillaFecha();
     initOrdenes();
     cargarSelectoresOT();
-}
-
-function mostrarMensajeCarga(msg) {
-    const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.className = 'toast show ' + (msg.includes('✅') ? 'toast-success' : 'toast-error');
-    clearTimeout(toast._timeout);
-    toast._timeout = setTimeout(() => toast.classList.remove('show'), 4000);
-}
-
-function cargarDatosLocalesFallback() {
-    // ✅ PRIMERO: intentar cargar del servidor si hay token y NO es modo local
-    if (token && !USUARIOS_LOCALES[currentUser?.username]) {
-        console.log('🔄 Intentando cargar del servidor en fallback...');
-        fetch(`${API_URL}/api/items`, { 
-            headers: { 'Authorization': token },
-            signal: AbortSignal.timeout(5000)
-        })
-        .then(res => {
-            if (!res.ok) throw new Error('Error ' + res.status);
-            return res.json();
-        })
-        .then(data => {
-            if (data && data.length > 0) {
-                items = data;
-                localStorage.setItem('panol_items', JSON.stringify(items));
-                // Cargar movimientos también
-                fetch(`${API_URL}/api/movimientos`, { 
-                    headers: { 'Authorization': token },
-                    signal: AbortSignal.timeout(5000)
-                })
-                .then(res => res.json())
-                .then(movsData => {
-                    if (movsData) {
-                        movs = movsData;
-                        localStorage.setItem('panol_movs', JSON.stringify(movs));
-                    }
-                    renderStock();
-                    renderHistory();
-                    renderCategorias();
-                    updateKPIsLocales();
-                    showToast('✅ ' + items.length + ' ítems cargados del servidor');
-                })
-                .catch(() => {
-                    renderStock();
-                    renderHistory();
-                    renderCategorias();
-                    updateKPIsLocales();
-                });
-                return;
-            }
-            // Si no hay datos en el servidor, usar localStorage
-            usarLocalStorage();
-        })
-        .catch(() => {
-            console.log('⚠️ No se pudo conectar al servidor, usando localStorage');
-            usarLocalStorage();
-        });
-        return;
-    }
-    
-    // Si no hay token o es modo local, usar localStorage
-    usarLocalStorage();
-}
-
-function usarLocalStorage() {
-    const savedItems = localStorage.getItem('panol_items');
-    if (savedItems) {
-        try { 
-            items = JSON.parse(savedItems); 
-            console.log('📦 Cargados ' + items.length + ' ítems de localStorage');
-        } catch(e) { 
-            items = []; 
-        }
-    } else {
-        // Datos por defecto solo para admin local
-        if (currentUser?.rol === 'admin') {
-            items = [
-                { codigo: "PAN-001", descripcion: "Guante de cuero Talle 9", categoria: "EPP", unidad: "Par", minimo: 5, maximo: 20, inicial: 12, ubicacion: "E1-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-                { codigo: "PAN-002", descripcion: "Casco de seguridad blanco", categoria: "EPP", unidad: "Unidad", minimo: 3, maximo: 15, inicial: 7, ubicacion: "E1-A2", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-                { codigo: "PAN-003", descripcion: "Lente de seguridad claro", categoria: "EPP", unidad: "Unidad", minimo: 10, maximo: 40, inicial: 23, ubicacion: "E1-A3", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-                { codigo: "PAN-005", descripcion: "Grasa litio multiuso 500g", categoria: "Lubricantes", unidad: "Kg", minimo: 3, maximo: 10, inicial: 5, ubicacion: "E3-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-                { codigo: "PAN-006", descripcion: "Aceite hidráulico ISO 46 20L", categoria: "Lubricantes", unidad: "Bidón", minimo: 1, maximo: 5, inicial: 2, ubicacion: "E3-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-                { codigo: "PAN-010", descripcion: "Disco de corte 115mm", categoria: "Abrasivos", unidad: "Unidad", minimo: 20, maximo: 80, inicial: 35, ubicacion: "E5-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] },
-                { codigo: "PAN-015", descripcion: "Rodamiento 6205 ZZ", categoria: "Rodamientos", unidad: "Unidad", minimo: 2, maximo: 8, inicial: 1, ubicacion: "E7-A2", planta: "Planta 1", obs: "", critico: "SI", imagenes: [] },
-                { codigo: "PAN-016", descripcion: "Filtro hidráulico HF7", categoria: "Filtros", unidad: "Unidad", minimo: 1, maximo: 6, inicial: 3, ubicacion: "E8-A1", planta: "Planta 1", obs: "", critico: "NO", imagenes: [] }
-            ];
-            localStorage.setItem('panol_items', JSON.stringify(items));
-        } else {
-            items = [];
-        }
-    }
-    const savedMovs = localStorage.getItem('panol_movs');
-    if (savedMovs) { 
-        try { movs = JSON.parse(savedMovs); } catch(e) { movs = []; } 
-    } else {
-        movs = [];
-    }
-    renderStock(); 
-    renderHistory(); 
-    renderCategorias(); 
-    updateKPIsLocales();
-    
-    if (items.length === 0) {
-        showToast('⚠️ Sin datos. Importá un Excel desde Admin o presioná 🔄', false);
-    }
 }
 
 function mostrarApp(data) {
@@ -395,11 +234,14 @@ function mostrarApp(data) {
 function doLogout() {
     detenerPollingPlanillas();
     detenerPollingStock();
-    if (token) fetch(`${API_URL}/api/logout`, { method: 'POST', headers: { 'Authorization': token } }).catch(() => {});
+    if (token && !token.startsWith('token_local_')) {
+        fetch(`${API_URL}/api/logout`, { method: 'POST', headers: { 'Authorization': token } }).catch(() => {});
+    }
     token = null;
     currentUser = null;
-    localStorage.removeItem('panol_token');
-    localStorage.removeItem('panol_user');
+    items = [];
+    movs = [];
+    planillas = [];
     document.getElementById('appScreen').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('loginPass').value = '';
@@ -411,54 +253,40 @@ function showLoginError(msg) { const el = document.getElementById('loginError');
 function showLoading(show) { document.getElementById('loadingOverlay').className = show ? 'loading-overlay show' : 'loading-overlay'; }
 
 // ============================================================
-//  CARGAR DATOS DEL SERVIDOR (AHORA PARA TODOS LOS USUARIOS)
+//  CARGAR TODOS LOS DATOS DEL SERVIDOR
 // ============================================================
-function loadDataFromServer() {
+function cargarTodosLosDatos() {
     showLoading(true);
-    
-    // ✅ Primero intentar con el servidor
     Promise.all([
-        fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token } }),
-        fetch(`${API_URL}/api/movimientos`, { headers: { 'Authorization': token } }),
-        fetch(`${API_URL}/api/stats`, { headers: { 'Authorization': token } })
+        apiCall('/api/items'),
+        apiCall('/api/movimientos'),
+        apiCall('/api/stats'),
+        apiCall('/api/planillas')
     ])
-    .then(async ([itemsRes, movsRes, statsRes]) => {
-        if (!itemsRes.ok) throw new Error('Error en items');
-        const itemsData = await itemsRes.json();
-        const movsData = await movsRes.json();
-        const statsData = await statsRes.json();
-        
-        if (itemsData && itemsData.length > 0) {
-            items = itemsData;
-            movs = movsData || [];
-            // Guardar en localStorage como caché
-            localStorage.setItem('panol_items', JSON.stringify(items));
-            localStorage.setItem('panol_movs', JSON.stringify(movs));
-            showLoading(false);
-            updateKPIsFromStats(statsData); 
-            renderStock(); 
-            renderHistory(); 
-            renderCategorias();
-            document.getElementById('syncStatus').textContent = '●'; 
-            document.getElementById('syncStatus').className = 'sync-status';
-            showToast('✅ ' + items.length + ' ítems cargados del servidor');
-        } else {
-            // El servidor devolvió 0 ítems
-            showLoading(false);
-            document.getElementById('syncStatus').textContent = '⚠️'; 
-            document.getElementById('syncStatus').className = 'sync-status error';
-            showToast('⚠️ El servidor no tiene datos. Importá un Excel desde Admin.', false);
-            // Usar localStorage si tiene datos
-            usarLocalStorage();
-        }
+    .then(([itemsData, movsData, statsData, planillasData]) => {
+        items = itemsData || [];
+        movs = movsData || [];
+        planillas = planillasData || [];
+        showLoading(false);
+        updateKPIsFromStats(statsData);
+        renderStock();
+        renderHistory();
+        renderCategorias();
+        document.getElementById('syncStatus').textContent = '●';
+        document.getElementById('syncStatus').className = 'sync-status';
+        showToast('✅ Datos cargados (' + items.length + ' ítems, ' + movs.length + ' movimientos)');
     })
-    .catch(err => { 
-        showLoading(false); 
-        document.getElementById('syncStatus').textContent = '⚠️'; 
-        document.getElementById('syncStatus').className = 'sync-status error'; 
-        showToast('⚠️ Sin conexión al servidor - usando caché local', false);
-        // Fallback a localStorage
-        usarLocalStorage();
+    .catch(err => {
+        showLoading(false);
+        document.getElementById('syncStatus').textContent = '⚠️';
+        document.getElementById('syncStatus').className = 'sync-status error';
+        showToast('❌ Error al cargar datos: ' + err.message, false);
+        // Si no hay conexión, intentar modo local
+        if (currentUser && USUARIOS_LOCALES[currentUser.username]) {
+            // Ya estamos en modo local, no hacer nada
+        } else {
+            showToast('⚠️ Sin conexión al servidor', false);
+        }
     });
 }
 
@@ -470,8 +298,16 @@ function updateKPIsFromStats(stats) {
     document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
 }
 
+function updateKPIsLocales() {
+    document.getElementById('kpiTotal').textContent = items.length;
+    document.getElementById('kpiSinStock').textContent = items.filter(i => stockActual(i) <= 0).length;
+    document.getElementById('kpiCriticos').textContent = items.filter(i => esCritico(i)).length;
+    document.getElementById('kpiCategorias').textContent = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length;
+    document.getElementById('kpiMovs').textContent = movs.length;
+}
+
 // ============================================================
-//  🆕 SINCRONIZACIÓN MANUAL (BOTÓN) - MEJORADA
+//  SINCRONIZACIÓN MANUAL (DESDE EL SERVIDOR)
 // ============================================================
 function sincronizarManual() {
     if (!token) {
@@ -479,76 +315,37 @@ function sincronizarManual() {
         return;
     }
     
-    // Animación del botón
     const btn = document.querySelector('.sync-btn');
     if (btn) btn.classList.add('sync-active');
     
     showLoading(true);
-    mostrarMensajeCarga('🔄 Sincronizando con servidor...');
+    showToast('🔄 Sincronizando con servidor...');
     
-    // Primero ver qué hay en el servidor
-    fetch(`${API_URL}/api/items`, { 
-        headers: { 'Authorization': token },
-        signal: AbortSignal.timeout(10000)
-    })
-    .then(res => {
-        if (!res.ok) throw new Error('Error ' + res.status);
-        return res.json();
-    })
-    .then(dataServidor => {
-        console.log('📦 Datos en servidor:', dataServidor.length, 'ítems');
-        
-        if (dataServidor && dataServidor.length > 0) {
-            // ✅ El servidor tiene datos → usarlos
-            items = dataServidor;
-            localStorage.setItem('panol_items', JSON.stringify(items));
-            
-            // Traer movimientos también
-            return fetch(`${API_URL}/api/movimientos`, { 
-                headers: { 'Authorization': token },
-                signal: AbortSignal.timeout(10000)
-            })
-            .then(res => res.json())
-            .then(movsData => {
-                if (movsData) {
-                    movs = movsData;
-                    localStorage.setItem('panol_movs', JSON.stringify(movs));
-                }
-                renderStock();
-                renderHistory();
-                renderCategorias();
-                updateKPIsLocales();
-                showLoading(false);
-                if (btn) btn.classList.remove('sync-active');
-                const msg = `✅ Sincronizado: ${items.length} ítems, ${movs.length} movimientos`;
-                mostrarMensajeCarga(msg);
-                showToast(msg);
-                document.getElementById('syncStatus').textContent = '●';
-                document.getElementById('syncStatus').className = 'sync-status';
-            });
-        } else {
-            // ❌ El servidor no tiene datos
+    Promise.all([
+        apiCall('/api/items'),
+        apiCall('/api/movimientos'),
+        apiCall('/api/planillas')
+    ])
+    .then(([itemsData, movsData, planillasData]) => {
+        if (itemsData && itemsData.length > 0) {
+            items = itemsData;
+            movs = movsData || [];
+            planillas = planillasData || [];
+            renderStock();
+            renderHistory();
+            renderCategorias();
+            updateKPIsLocales();
             showLoading(false);
             if (btn) btn.classList.remove('sync-active');
-            showToast('⚠️ El servidor no tiene datos. Importá un Excel desde Admin.', false);
+            document.getElementById('syncStatus').textContent = '●';
+            document.getElementById('syncStatus').className = 'sync-status';
+            showToast('✅ Sincronizado: ' + items.length + ' ítems, ' + movs.length + ' movimientos');
+        } else {
+            showLoading(false);
+            if (btn) btn.classList.remove('sync-active');
             document.getElementById('syncStatus').textContent = '⚠️';
             document.getElementById('syncStatus').className = 'sync-status error';
-            
-            // Ver si hay datos en localStorage para mostrar
-            const localItems = localStorage.getItem('panol_items');
-            if (localItems) {
-                try {
-                    const parsed = JSON.parse(localItems);
-                    if (parsed.length > 0) {
-                        items = parsed;
-                        renderStock();
-                        renderHistory();
-                        renderCategorias();
-                        updateKPIsLocales();
-                        showToast('⚠️ Usando datos locales (' + items.length + ' ítems en caché)', false);
-                    }
-                } catch(e) {}
-            }
+            showToast('⚠️ El servidor no tiene datos. Importá un Excel desde Admin.', false);
         }
     })
     .catch(err => {
@@ -557,41 +354,22 @@ function sincronizarManual() {
         if (btn) btn.classList.remove('sync-active');
         document.getElementById('syncStatus').textContent = '⚠️';
         document.getElementById('syncStatus').className = 'sync-status error';
-        showToast('❌ Error al conectar con el servidor', false);
-        
-        // Intentar usar localStorage
-        const localItems = localStorage.getItem('panol_items');
-        if (localItems) {
-            try {
-                const parsed = JSON.parse(localItems);
-                if (parsed.length > 0) {
-                    items = parsed;
-                    renderStock();
-                    renderHistory();
-                    renderCategorias();
-                    updateKPIsLocales();
-                    showToast('⚠️ Usando datos locales (' + items.length + ' ítems en caché)', false);
-                }
-            } catch(e) {}
-        }
+        showToast('❌ Error al sincronizar: ' + err.message, false);
     });
 }
 
 // ============================================================
-//  POLLING DE STOCK (AHORA PARA TODOS)
+//  POLLING DE STOCK
 // ============================================================
 function iniciarPollingStock() {
     detenerPollingStock();
-    // ✅ Ahora siempre que haya token, incluso en modo local
-    if (!token) return;
-    // Si es modo local, no hacemos polling (ya que no hay servidor real)
-    if (currentUser && USUARIOS_LOCALES[currentUser.username]) return;
+    if (!token || token.startsWith('token_local_')) return;
     
     stockPollingInterval = setInterval(() => {
         if (!document.hidden) {
             sincronizarStock();
         }
-    }, 15000); // 15 segundos
+    }, 15000);
 }
 
 function detenerPollingStock() {
@@ -602,29 +380,16 @@ function detenerPollingStock() {
 }
 
 function sincronizarStock() {
-    if (!token) return;
-    // No sincronizar en modo local
-    if (currentUser && USUARIOS_LOCALES[currentUser.username]) return;
+    if (!token || token.startsWith('token_local_')) return;
     
-    fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token }, signal: AbortSignal.timeout(5000) })
-        .then(res => {
-            if (!res.ok) throw new Error('Error ' + res.status);
-            return res.json();
-        })
+    apiCall('/api/items')
         .then(data => {
-            if (data && data.length > 0) {
-                const nuevosItems = data;
-                // Verificar si hay cambios
-                if (JSON.stringify(items) !== JSON.stringify(nuevosItems)) {
-                    const itemsAntes = items.length;
-                    items = nuevosItems;
-                    localStorage.setItem('panol_items', JSON.stringify(items));
-                    // Solo actualizar vista si estamos en tabs que lo necesitan
-                    if (currentTab === 'stock') renderStock();
-                    if (currentTab === 'categorias') renderCategorias();
-                    updateKPIsLocales();
-                    console.log('🔄 Stock actualizado automáticamente (' + items.length + ' ítems, antes ' + itemsAntes + ')');
-                }
+            if (data && data.length > 0 && JSON.stringify(items) !== JSON.stringify(data)) {
+                items = data;
+                if (currentTab === 'stock') renderStock();
+                if (currentTab === 'categorias') renderCategorias();
+                updateKPIsLocales();
+                console.log('🔄 Stock actualizado automáticamente (' + items.length + ' ítems)');
             }
         })
         .catch(() => {});
@@ -640,17 +405,6 @@ function hacerPing() {
     fetch(`${API_URL}/api/items`, { headers: { 'Authorization': token || '' }, signal: AbortSignal.timeout(10000) })
         .then(() => { const s = document.getElementById('pingStatus'); s.textContent = `⏱ ${pingContador} ✅`; s.className = 'ping-status active'; })
         .catch(() => { const s = document.getElementById('pingStatus'); s.textContent = `⏱ ${pingContador} ⚠️`; s.className = 'ping-status'; });
-}
-
-// ============================================================
-//  UPDATE KPIS LOCALES
-// ============================================================
-function updateKPIsLocales() {
-    document.getElementById('kpiTotal').textContent = items.length;
-    document.getElementById('kpiSinStock').textContent = items.filter(i => stockActual(i) <= 0).length;
-    document.getElementById('kpiCriticos').textContent = items.filter(i => esCritico(i)).length;
-    document.getElementById('kpiCategorias').textContent = [...new Set(items.map(i => i.categoria || 'Sin categoría'))].length;
-    document.getElementById('kpiMovs').textContent = movs.length;
 }
 
 // ============================================================
@@ -673,7 +427,7 @@ function switchTab(tab) {
     if (tab === 'editar') resetEditForm();
     if (tab === 'categorias') renderCategorias();
     if (tab === 'planilla') initPlanillaFecha();
-    if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') { renderPlanillasRecibidas(); if (!planillasInterval) iniciarPollingPlanillas(); }
+    if (tab === 'planillasRecibidas' && currentUser?.rol === 'admin') { renderPlanillasRecibidas(); }
     if (tab === 'ordenes' && currentUser?.rol === 'admin') { initOrdenes(); cargarSelectoresOT(); renderTablaOT(); }
 }
 
@@ -790,9 +544,28 @@ function saveEdit() {
     const updatedItem = { codigo: newCodigo, descripcion: newDescripcion, categoria: document.getElementById('editCategoria').value.trim() || 'Sin categoría', unidad: document.getElementById('editUnidad').value, inicial: Number(document.getElementById('editInicial').value) || 0, minimo: Number(document.getElementById('editMinimo').value) || 1, maximo: Number(document.getElementById('editMaximo').value) || 10, ubicacion: document.getElementById('editUbicacion').value.trim(), planta: document.getElementById('editPlanta').value.trim(), critico: criticoVal, obs: document.getElementById('editObs').value.trim() };
     if (imagenesTemporales.length > 0) { updatedItem.imagenes = [...imagenesTemporales]; updatedItem.imagen = imagenesTemporales[0]; } else { updatedItem.imagenes = []; updatedItem.imagen = null; }
     showLoading(true);
-    if (currentUser && USUARIOS_LOCALES[currentUser.username]) { const idx = items.findIndex(i => i.codigo === editingItemCodigo); if (idx !== -1) items[idx] = updatedItem; editingItemCodigo = newCodigo; localStorage.setItem('panol_items', JSON.stringify(items)); showLoading(false); showToast('✅ Ítem actualizado (local)'); loadItemForEdit(newCodigo); renderStock(); renderCategorias(); return; }
+    if (token && token.startsWith('token_local_')) {
+        const idx = items.findIndex(i => i.codigo === editingItemCodigo);
+        if (idx !== -1) items[idx] = updatedItem;
+        editingItemCodigo = newCodigo;
+        showLoading(false);
+        showToast('✅ Ítem actualizado (local)');
+        loadItemForEdit(newCodigo);
+        renderStock();
+        renderCategorias();
+        return;
+    }
     apiCall(`/api/items/${editingItemCodigo}`, { method: 'PUT', body: JSON.stringify(updatedItem) })
-        .then(() => { const idx = items.findIndex(i => i.codigo === editingItemCodigo); if (idx !== -1) items[idx] = updatedItem; editingItemCodigo = newCodigo; showLoading(false); showToast('✅ Ítem actualizado'); loadItemForEdit(newCodigo); renderStock(); renderCategorias(); })
+        .then(() => {
+            const idx = items.findIndex(i => i.codigo === editingItemCodigo);
+            if (idx !== -1) items[idx] = updatedItem;
+            editingItemCodigo = newCodigo;
+            showLoading(false);
+            showToast('✅ Ítem actualizado');
+            loadItemForEdit(newCodigo);
+            renderStock();
+            renderCategorias();
+        })
         .catch(err => { showLoading(false); showToast('❌ Error: ' + err.message, false); });
 }
 
@@ -823,7 +596,7 @@ function mostrarInfoItem(item) { document.getElementById('itemInfoDesc').textCon
 function selectItem(codigo) { document.getElementById('codigoInput').value=codigo; document.getElementById('suggestions').classList.remove('show'); const item=items.find(i=>i.codigo===codigo); if(item){mostrarInfoItem(item);selectedItemCodigo=codigo;hideNewItemForm();} document.getElementById('cantidadInput').focus(); }
 function clearItemSelection() { document.getElementById('codigoInput').value=''; document.getElementById('itemInfo').classList.remove('show'); document.getElementById('suggestions').classList.remove('show'); selectedItemCodigo=null; hideNewItemForm(); document.getElementById('codigoInput').focus(); }
 
-function registrarMovimiento() { const cant=Number(document.getElementById('cantidadInput').value),resp=document.getElementById('responsableInput').value.trim()||currentUser?.username||'',ot=document.getElementById('otInput').value.trim(),sec=document.getElementById('sectorInput').value.trim(),obs=document.getElementById('obsInput').value.trim(); if(!cant||cant<=0){showToast('Cantidad inválida',false);return;} let co,de,ca,un,mi,ma,ub,pl,cr; if(isCreatingNewItem){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;} const nc=document.getElementById('newCodigo').value.trim(),nd=document.getElementById('newDescripcion').value.trim(); if(!nc){showToast('Código requerido',false);return;} if(!nd){showToast('Descripción requerida',false);return;} if(items.find(i=>i.codigo===nc)){showToast('Código existe',false);return;} co=nc;de=nd;ca=document.getElementById('newCategoria').value.trim()||'Sin categoría';un=document.getElementById('newUnidad').value;mi=Number(document.getElementById('newMinimo').value)||1;ma=Number(document.getElementById('newMaximo').value)||10;ub=document.getElementById('newUbicacion').value.trim();pl=document.getElementById('newPlanta').value.trim()||'Planta 1';cr=document.getElementById('newCritico').value.trim().toUpperCase()||'NO';if(!['SI','NO'].includes(cr))cr='NO'; showLoading(true); if(currentUser&&USUARIOS_LOCALES[currentUser.username]){items.push({codigo:co,descripcion:de,categoria:ca,unidad:un,inicial:Number(document.getElementById('newInicial').value)||0,minimo:mi,maximo:ma,ubicacion:ub,planta:pl,critico:cr,obs:'',imagenes:[]}); localStorage.setItem('panol_items',JSON.stringify(items)); movs.unshift({id:Date.now(),fecha:new Date().toLocaleDateString('es-AR'),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),tipo:currentTipo,codigo:co,descripcion:de,cantidad:cant,responsable:resp||currentUser.username,ot,sec,obs,usuario:currentUser.username}); localStorage.setItem('panol_movs',JSON.stringify(movs)); showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;} apiCall('/api/items',{method:'POST',body:JSON.stringify({codigo:co,descripcion:de,categoria:ca,unidad:un,inicial:Number(document.getElementById('newInicial').value)||0,minimo:mi,maximo:ma,ubicacion:ub,planta:pl,critico:cr,obs:''})}).then(()=>registrarMovimientoEnServidor(co,de,cant,resp,ot,sec,obs,ca,un,mi,ma,ub,pl,cr)).then(()=>{showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});return;} if(!selectedItemCodigo){const v=document.getElementById('codigoInput').value.trim();const item=items.find(i=>i.codigo===v);if(!item){showToast('Seleccioná ítem',false);return;}selectedItemCodigo=item.codigo;} const item=items.find(i=>i.codigo===selectedItemCodigo);if(!item){showToast('Ítem no encontrado',false);return;}co=item.codigo;de=item.descripcion; if(currentTipo==='SALIDA'&&cant>stockActual(item)){showToast('Stock insuficiente: '+stockActual(item),false);return;} showLoading(true); if(currentUser&&USUARIOS_LOCALES[currentUser.username]){movs.unshift({id:Date.now(),fecha:new Date().toLocaleDateString('es-AR'),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),tipo:currentTipo,codigo:co,descripcion:de,cantidad:cant,responsable:resp||currentUser.username,ot,sec,obs,usuario:currentUser.username}); localStorage.setItem('panol_movs',JSON.stringify(movs));showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;} registrarMovimientoEnServidor(co,de,cant,resp,ot,sec,obs).then(()=>{showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);}); }
+function registrarMovimiento() { const cant=Number(document.getElementById('cantidadInput').value),resp=document.getElementById('responsableInput').value.trim()||currentUser?.username||'',ot=document.getElementById('otInput').value.trim(),sec=document.getElementById('sectorInput').value.trim(),obs=document.getElementById('obsInput').value.trim(); if(!cant||cant<=0){showToast('Cantidad inválida',false);return;} let co,de,ca,un,mi,ma,ub,pl,cr; if(isCreatingNewItem){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;} const nc=document.getElementById('newCodigo').value.trim(),nd=document.getElementById('newDescripcion').value.trim(); if(!nc){showToast('Código requerido',false);return;} if(!nd){showToast('Descripción requerida',false);return;} if(items.find(i=>i.codigo===nc)){showToast('Código existe',false);return;} co=nc;de=nd;ca=document.getElementById('newCategoria').value.trim()||'Sin categoría';un=document.getElementById('newUnidad').value;mi=Number(document.getElementById('newMinimo').value)||1;ma=Number(document.getElementById('newMaximo').value)||10;ub=document.getElementById('newUbicacion').value.trim();pl=document.getElementById('newPlanta').value.trim()||'Planta 1';cr=document.getElementById('newCritico').value.trim().toUpperCase()||'NO';if(!['SI','NO'].includes(cr))cr='NO'; showLoading(true); if(token && token.startsWith('token_local_')){items.push({codigo:co,descripcion:de,categoria:ca,unidad:un,inicial:Number(document.getElementById('newInicial').value)||0,minimo:mi,maximo:ma,ubicacion:ub,planta:pl,critico:cr,obs:'',imagenes:[]}); movs.unshift({id:Date.now(),fecha:new Date().toLocaleDateString('es-AR'),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),tipo:currentTipo,codigo:co,descripcion:de,cantidad:cant,responsable:resp||currentUser.username,ot,sec,obs,usuario:currentUser.username}); showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;} apiCall('/api/items',{method:'POST',body:JSON.stringify({codigo:co,descripcion:de,categoria:ca,unidad:un,inicial:Number(document.getElementById('newInicial').value)||0,minimo:mi,maximo:ma,ubicacion:ub,planta:pl,critico:cr,obs:''})}).then(()=>registrarMovimientoEnServidor(co,de,cant,resp,ot,sec,obs,ca,un,mi,ma,ub,pl,cr)).then(()=>{showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);cargarTodosLosDatos();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});return;} if(!selectedItemCodigo){const v=document.getElementById('codigoInput').value.trim();const item=items.find(i=>i.codigo===v);if(!item){showToast('Seleccioná ítem',false);return;}selectedItemCodigo=item.codigo;} const item=items.find(i=>i.codigo===selectedItemCodigo);if(!item){showToast('Ítem no encontrado',false);return;}co=item.codigo;de=item.descripcion; if(currentTipo==='SALIDA'&&cant>stockActual(item)){showToast('Stock insuficiente: '+stockActual(item),false);return;} showLoading(true); if(token && token.startsWith('token_local_')){movs.unshift({id:Date.now(),fecha:new Date().toLocaleDateString('es-AR'),hora:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),tipo:currentTipo,codigo:co,descripcion:de,cantidad:cant,responsable:resp||currentUser.username,ot,sec,obs,usuario:currentUser.username});showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;} registrarMovimientoEnServidor(co,de,cant,resp,ot,sec,obs).then(()=>{showLoading(false);limpiarFormularioMovimiento();showToast('✓ '+currentTipo+' registrada — '+de);cargarTodosLosDatos();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);}); }
 function registrarMovimientoEnServidor(co,de,cant,resp,ot,sec,obs,ca,un,mi,ma,ub,pl,cr){const b={codigo:co,descripcion:de,tipo:currentTipo,cantidad:cant,responsable:resp,ot,sec,obs};if(ca)b.categoria=ca;if(un)b.unidad=un;if(mi)b.minimo=mi;if(ma)b.maximo=ma;if(ub)b.ubicacion=ub;if(pl)b.planta=pl;if(cr)b.critico=cr;return apiCall('/api/movimiento',{method:'POST',body:JSON.stringify(b)});}
 function limpiarFormularioMovimiento(){['codigoInput','cantidadInput','otInput','obsInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('itemInfo').classList.remove('show');selectedItemCodigo=null;hideNewItemForm();}
 
@@ -843,12 +616,12 @@ function toggleCategoria(cat){categoriasExpandidas[cat]=!categoriasExpandidas[ca
 // ============================================================
 function descargarPlantilla(){const w=XLSX.utils.book_new();const d=[['Código','Descripción','Categoría','Unidad','Stock Inicial','Stock Mínimo','Stock Máximo','Ubicación','Planta','Crítico','Observaciones'],['PAN-001','Ejemplo','EPP','Unidad',10,5,20,'E1-A1','Planta 1','NO','']];const ws=XLSX.utils.aoa_to_sheet(d);XLSX.utils.book_append_sheet(w,ws,'Ítems');ws['!cols']=[{wch:15},{wch:30},{wch:15},{wch:12},{wch:14},{wch:14},{wch:14},{wch:15},{wch:15},{wch:10},{wch:30}];const wo=XLSX.write(w,{bookType:'xlsx',type:'array'});const b=new Blob([wo],{type:'application/octet-stream'});const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='plantilla_stock_panol.xlsx';document.body.appendChild(l);l.click();document.body.removeChild(l);setTimeout(()=>URL.revokeObjectURL(l.href),100);showToast('✅ Plantilla descargada');}
 function exportarDatos(){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}downloadBackup();}
-async function downloadBackup(){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}showLoading(true);try{let d;if(currentUser&&USUARIOS_LOCALES[currentUser.username]){d={items,movimientos:movs,planillas,usuarios:USUARIOS_LOCALES};showLoading(false);}else{d=await apiCall('/api/backup');showLoading(false);}const w=XLSX.utils.book_new();const id=d.items.map(i=>({'Código':i.codigo,'Descripción':i.descripcion,'Categoría':i.categoria||'','Unidad':i.unidad||'Unidad','Stock Inicial':i.inicial||0,'Stock Mínimo':i.minimo||0,'Stock Máximo':i.maximo||0,'Ubicación':i.ubicacion||'','Planta':i.planta||'','Crítico':i.critico||'NO','Observaciones':i.obs||''}));const wi=XLSX.utils.json_to_sheet(id);XLSX.utils.book_append_sheet(w,wi,'Ítems');const md=(d.movimientos||[]).map(m=>({'Fecha':m.fecha||'','Hora':m.hora||'','Tipo':m.tipo||'','Código':m.codigo||'','Descripción':m.descripcion||'','Cantidad':m.cantidad||0,'Responsable':m.responsable||'','OT/Referencia':m.ot||'','Sector/Destino':m.sector||'','Observaciones':m.obs||''}));const wm=XLSX.utils.json_to_sheet(md);XLSX.utils.book_append_sheet(w,wm,'Movimientos');wi['!cols']=[{wch:15},{wch:30},{wch:15},{wch:12},{wch:14},{wch:14},{wch:14},{wch:15},{wch:15},{wch:10},{wch:30}];wm['!cols']=[{wch:12},{wch:10},{wch:12},{wch:15},{wch:30},{wch:12},{wch:15},{wch:18},{wch:18},{wch:30}];const wo=XLSX.write(w,{bookType:'xlsx',type:'array'});const b=new Blob([wo],{type:'application/octet-stream'});if(window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:'backup_pañol.xlsx',types:[{description:'Excel Workbook',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});const wr=await h.createWritable();await wr.write(b);await wr.close();showToast('✅ Backup guardado');return;}catch(err){if(err.name==='AbortError'){showToast('⏹️ Cancelado');return;}}}const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='backup_pañol.xlsx';document.body.appendChild(l);l.click();document.body.removeChild(l);setTimeout(()=>URL.revokeObjectURL(l.href),100);showToast('✅ Backup descargado');}catch(err){showLoading(false);showToast('❌ '+err.message,false);}}
+async function downloadBackup(){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}showLoading(true);try{let d;if(token && token.startsWith('token_local_')){d={items,movimientos:movs,planillas};showLoading(false);}else{d=await apiCall('/api/backup');showLoading(false);}const w=XLSX.utils.book_new();const id=d.items.map(i=>({'Código':i.codigo,'Descripción':i.descripcion,'Categoría':i.categoria||'','Unidad':i.unidad||'Unidad','Stock Inicial':i.inicial||0,'Stock Mínimo':i.minimo||0,'Stock Máximo':i.maximo||0,'Ubicación':i.ubicacion||'','Planta':i.planta||'','Crítico':i.critico||'NO','Observaciones':i.obs||''}));const wi=XLSX.utils.json_to_sheet(id);XLSX.utils.book_append_sheet(w,wi,'Ítems');const md=(d.movimientos||[]).map(m=>({'Fecha':m.fecha||'','Hora':m.hora||'','Tipo':m.tipo||'','Código':m.codigo||'','Descripción':m.descripcion||'','Cantidad':m.cantidad||0,'Responsable':m.responsable||'','OT/Referencia':m.ot||'','Sector/Destino':m.sector||'','Observaciones':m.obs||''}));const wm=XLSX.utils.json_to_sheet(md);XLSX.utils.book_append_sheet(w,wm,'Movimientos');wi['!cols']=[{wch:15},{wch:30},{wch:15},{wch:12},{wch:14},{wch:14},{wch:14},{wch:15},{wch:15},{wch:10},{wch:30}];wm['!cols']=[{wch:12},{wch:10},{wch:12},{wch:15},{wch:30},{wch:12},{wch:15},{wch:18},{wch:18},{wch:30}];const wo=XLSX.write(w,{bookType:'xlsx',type:'array'});const b2=new Blob([wo],{type:'application/octet-stream'});const l=document.createElement('a');l.href=URL.createObjectURL(b2);l.download='backup_pañol.xlsx';document.body.appendChild(l);l.click();document.body.removeChild(l);setTimeout(()=>URL.revokeObjectURL(l.href),100);showToast('✅ Backup descargado');}catch(err){showLoading(false);showToast('❌ '+err.message,false);}}
 function openBackupModal(){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}document.getElementById('backupModal').classList.add('show');document.getElementById('restoreInfo').style.display='none';}
 function closeBackupModal(){document.getElementById('backupModal').classList.remove('show');}
 function restoreBackup(e){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=function(ev){try{const w=XLSX.read(ev.target.result,{type:'array'});const wi=w.Sheets['Ítems'];if(!wi)throw new Error('Hoja Ítems no encontrada');const id=XLSX.utils.sheet_to_json(wi);const wm=w.Sheets['Movimientos'];let md=[];if(wm)md=XLSX.utils.sheet_to_json(wm);if(!id||id.length===0)throw new Error('Sin ítems');const ri=id.map(r=>({codigo:String(r['Código']||'').trim(),descripcion:String(r['Descripción']||'').trim(),categoria:String(r['Categoría']||'Sin categoría').trim()||'Sin categoría',unidad:String(r['Unidad']||'Unidad').trim()||'Unidad',inicial:Number(r['Stock Inicial'])||0,minimo:Number(r['Stock Mínimo'])||0,maximo:Number(r['Stock Máximo'])||0,ubicacion:String(r['Ubicación']||'').trim(),planta:String(r['Planta']||'').trim(),critico:['SI','NO'].includes(String(r['Crítico']||'').toUpperCase())?String(r['Crítico']).toUpperCase():'NO',obs:String(r['Observaciones']||'').trim(),imagenes:[]}));const vi=ri.filter(i=>i.codigo&&i.descripcion);if(vi.length===0)throw new Error('Sin ítems válidos');const rm=md.map(r=>({fecha:String(r['Fecha']||new Date().toLocaleDateString('es-AR')),hora:String(r['Hora']||new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})),tipo:String(r['Tipo']||'ENTRADA'),codigo:String(r['Código']||'').trim(),descripcion:String(r['Descripción']||'').trim(),cantidad:Number(r['Cantidad'])||0,responsable:String(r['Responsable']||'').trim(),ot:String(r['OT/Referencia']||'').trim(),sector:String(r['Sector/Destino']||'').trim(),obs:String(r['Observaciones']||'').trim(),id:Date.now()+Math.random()*1000}));pendingRestoreData={items:vi,movs:rm};const info=document.getElementById('restoreInfo');info.style.display='block';info.innerHTML=`<div class="info-box success"><strong>✅ Backup listo</strong><br>📦 ${vi.length} ítems<br>📋 ${rm.length} movs</div><div class="btn-group"><button class="btn btn-cancel" onclick="cancelRestore()">Cancelar</button><button class="btn btn-primary" onclick="confirmRestore()">✅ Confirmar</button></div>`;}catch(err){const info=document.getElementById('restoreInfo');info.style.display='block';info.innerHTML=`<div class="info-box error">❌ ${err.message||'Error'}</div>`;pendingRestoreData=null;}};r.readAsArrayBuffer(f);e.target.value='';}
 function cancelRestore(){document.getElementById('restoreInfo').style.display='none';pendingRestoreData=null;}
-function confirmRestore(){if(!pendingRestoreData){showToast('Sin datos',false);return;}showLoading(true);if(currentUser&&USUARIOS_LOCALES[currentUser.username]){items=pendingRestoreData.items;movs=pendingRestoreData.movs;localStorage.setItem('panol_items',JSON.stringify(items));localStorage.setItem('panol_movs',JSON.stringify(movs));showLoading(false);document.getElementById('restoreInfo').style.display='none';pendingRestoreData=null;closeBackupModal();showToast('✅ Restaurado (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}apiCall('/api/backup/restore',{method:'POST',body:JSON.stringify({items:pendingRestoreData.items,movimientos:pendingRestoreData.movs,usuarios:{}})}).then(()=>{showLoading(false);document.getElementById('restoreInfo').style.display='none';pendingRestoreData=null;closeBackupModal();showToast('✅ Restaurado');loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
+function confirmRestore(){if(!pendingRestoreData){showToast('Sin datos',false);return;}showLoading(true);if(token && token.startsWith('token_local_')){items=pendingRestoreData.items;movs=pendingRestoreData.movs;showLoading(false);document.getElementById('restoreInfo').style.display='none';pendingRestoreData=null;closeBackupModal();showToast('✅ Restaurado (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}apiCall('/api/backup/restore',{method:'POST',body:JSON.stringify({items:pendingRestoreData.items,movimientos:pendingRestoreData.movs,usuarios:{}})}).then(()=>{showLoading(false);document.getElementById('restoreInfo').style.display='none';pendingRestoreData=null;closeBackupModal();showToast('✅ Restaurado');cargarTodosLosDatos();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
 function openImportModal(){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}document.getElementById('importModal').classList.add('show');resetImportModal();}
 function closeImportModal(){document.getElementById('importModal').classList.remove('show');}
 function resetImportModal(){const dz=document.getElementById('dropZone');if(dz)dz.classList.remove('loaded');document.getElementById('dropIcon').textContent='📊';document.getElementById('dropText').textContent='Hacé clic o arrastrá tu Excel';document.getElementById('importInfo').style.display='none';document.getElementById('previewContainer').style.display='none';document.getElementById('importButtons').style.display='none';importData=null;}
@@ -857,23 +630,20 @@ function handleFileSelect(e){if(e.target.files[0])processFile(e.target.files[0])
 function mapearColumnas(h){const m={};h.forEach((h,i)=>{const n=String(h||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'');if(n.includes('cod'))m.codigo=i;if(n.includes('desc'))m.descripcion=i;if(n.includes('stockinicial')||n==='stockinicial'||n==='stock_inicial')m.stock=i;if(n==='stock'||n==='stockactual'||n==='cantidad')m.stock=i;if(n.includes('ubic'))m.ubicacion=i;if(n.includes('plant'))m.planta=i;if(n.includes('min'))m.minimo=i;if(n.includes('max'))m.maximo=i;if(n.includes('obs')||n.includes('nota'))m.obs=i;if(n.includes('cat'))m.categoria=i;if(n.includes('unid'))m.unidad=i;if(n.includes('crit'))m.critico=i;});return m;}
 function processFile(f){const r=new FileReader();r.onload=function(e){try{const w=XLSX.read(e.target.result,{type:'array'});const ws=w.Sheets[w.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(rows.length<2){showImportError('Archivo vacío');return;}let hi=0;for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i].some(c=>typeof c==='string'&&c.trim())){hi=i;break;}}const map=mapearColumnas(rows[hi]);if(map.codigo===undefined||map.descripcion===undefined){showImportError('Columnas: Código y Descripción');return;}importData=rows.slice(hi+1).filter(r=>r[map.codigo]&&String(r[map.codigo]).trim()).map(r=>{let sv=Number(r[map.stock]??0);if(isNaN(sv))sv=0;let cv=String(r[map.critico]||'').trim().toUpperCase();if(!['SI','NO'].includes(cv))cv='NO';return{codigo:String(r[map.codigo]||'').trim(),descripcion:String(r[map.descripcion]||'').trim(),categoria:String(r[map.categoria]||'Sin categoría').trim()||'Sin categoría',unidad:String(r[map.unidad]||'Unidad').trim()||'Unidad',inicial:sv,minimo:Number(r[map.minimo]??0)||0,maximo:Number(r[map.maximo]??0)||0,ubicacion:String(r[map.ubicacion]||'').trim(),planta:String(r[map.planta]||'').trim()||'Planta 1',critico:cv,obs:String(r[map.obs]||'').trim(),imagenes:[]};});if(importData.length===0){showImportError('Sin datos válidos');return;}document.getElementById('dropZone').classList.add('loaded');document.getElementById('dropIcon').textContent='✅';document.getElementById('dropText').textContent=f.name+` (${importData.length} ítems)`;document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box success';document.getElementById('importInfo').textContent=`✓ ${importData.length} ítems listos`;const pc=document.getElementById('previewContainer');pc.style.display='block';pc.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">Vista previa (${Math.min(5,importData.length)} de ${importData.length})</div><table class="preview-table"><thead><tr><th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th></tr></thead><tbody>${importData.slice(0,5).map((r,i)=>`<tr style="background:${i%2===0?'#fff':'var(--bg)'}"><td style="font-weight:700;color:var(--verde);">${r.codigo}</td><td>${r.descripcion}</td><td style="text-align:center;font-weight:700;color:${r.inicial>0?'var(--verdeM)':'var(--rojo)'};">${r.inicial}</td><td style="text-align:center;">${r.minimo}</td><td style="text-align:center;">${r.maximo}</td><td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td></tr>`).join('')}${importData.length>5?`<tr><td colspan="6" style="text-align:center;color:var(--sub);">... y ${importData.length-5} más</td></tr>`:''}</tbody></table>`;document.getElementById('importButtons').style.display='flex';}catch(err){showImportError('Error: '+err.message);}};r.readAsArrayBuffer(f);}
 function showImportError(m){document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box error';document.getElementById('importInfo').textContent='⚠️ '+m;}
-function confirmImport(){if(!importData||currentUser?.rol!=='admin'){showToast('Sin datos',false);return;}if(currentUser&&USUARIOS_LOCALES[currentUser.username]){items=importData;movs=[];localStorage.setItem('panol_items',JSON.stringify(items));localStorage.setItem('panol_movs',JSON.stringify(movs));closeImportModal();categoriasExpandidas={};showToast('✅ '+items.length+' ítems (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}showLoading(true);const ps=importData.map(i=>{const ex=items.find(x=>x.codigo===i.codigo);if(ex)return apiCall(`/api/items/${i.codigo}`,{method:'PUT',body:JSON.stringify(i)}).catch(()=>null);else return apiCall('/api/items',{method:'POST',body:JSON.stringify(i)}).catch(()=>null);});Promise.allSettled(ps).then(r=>{showLoading(false);closeImportModal();categoriasExpandidas={};const ok=r.filter(x=>x.status==='fulfilled'&&x.value?.success!==false).length;showToast(`✅ ${ok} ítems importados al servidor`);loadDataFromServer();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
+function confirmImport(){if(!importData||currentUser?.rol!=='admin'){showToast('Sin datos',false);return;}if(token && token.startsWith('token_local_')){items=importData;movs=[];closeImportModal();categoriasExpandidas={};showToast('✅ '+items.length+' ítems (local)');renderStock();renderHistory();renderCategorias();updateKPIsLocales();return;}showLoading(true);const ps=importData.map(i=>{const ex=items.find(x=>x.codigo===i.codigo);if(ex)return apiCall(`/api/items/${i.codigo}`,{method:'PUT',body:JSON.stringify(i)}).catch(()=>null);else return apiCall('/api/items',{method:'POST',body:JSON.stringify(i)}).catch(()=>null);});Promise.allSettled(ps).then(r=>{showLoading(false);closeImportModal();categoriasExpandidas={};const ok=r.filter(x=>x.status==='fulfilled'&&x.value?.success!==false).length;showToast(`✅ ${ok} ítems importados al servidor`);cargarTodosLosDatos();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
 
 // ============================================================
 //  PLANILLA DE TRABAJO
 // ============================================================
-function cargarPlanillasDesdeServidor(){if(!token)return Promise.resolve([]);return apiCall('/api/planillas').then(d=>{planillas=d||[];guardarPlanillasLocal();return planillas;}).catch(()=>[]);}
-function guardarPlanillasLocal(){localStorage.setItem('panol_planillas',JSON.stringify(planillas));}
-function iniciarPollingPlanillas(){detenerPollingPlanillas();if(!token)return;planillasInterval=setInterval(()=>{if(!document.hidden)sincronizarPlanillas();},5000);}
+function iniciarPollingPlanillas(){detenerPollingPlanillas();if(!token || token.startsWith('token_local_'))return;planillasInterval=setInterval(()=>{if(!document.hidden)cargarPlanillasDesdeServidor();},5000);}
 function detenerPollingPlanillas(){if(planillasInterval){clearInterval(planillasInterval);planillasInterval=null;}}
-function sincronizarPlanillas(){if(!token)return;apiCall('/api/planillas').then(d=>{const n=d||[];if(JSON.stringify(planillas)!==JSON.stringify(n)){planillas=n;guardarPlanillasLocal();if(currentTab==='planillasRecibidas'&&currentUser?.rol==='admin')renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));if(currentTab==='planilla')actualizarContadorPlanillas();}}).catch(()=>{});}
-function actualizarContadorPlanillas(){const b=document.querySelector('.tab-btn[data-tab="planillasRecibidas"] .badge-count-tab');if(!b&&currentUser?.rol==='admin'){const s=document.createElement('span');s.className='badge-count-tab';s.style.cssText='background:var(--rojo);color:#fff;border-radius:50%;padding:0px 6px;font-size:9px;font-weight:700;margin-left:4px;';document.querySelector('.tab-btn[data-tab="planillasRecibidas"]')?.appendChild(s);}const be=document.querySelector('.tab-btn[data-tab="planillasRecibidas"] .badge-count-tab');if(be)be.textContent=planillas.length>0?planillas.length:'';}
-function registrarPlanilla(){if(!currentUser){showToast('Iniciá sesión',false);return;}const fe=document.getElementById('planillaFecha').value,ti=document.getElementById('planillaTipo').value,cl=document.getElementById('planillaClasificacion').value,mo=document.getElementById('planillaModulo').value.trim(),de=document.getElementById('planillaDescripcion').value.trim(),te=document.getElementById('planillaTecnico').value.trim()||currentUser.username,ho=parseFloat(document.getElementById('planillaHoras').value),re=document.getElementById('planillaRepuesto').value.trim(),ob=document.getElementById('planillaObservaciones').value.trim();if(!ti){showToast('Tipo requerido',false);return;}if(!mo){showToast('Módulo requerido',false);return;}if(!de){showToast('Descripción requerida',false);return;}if(!ho||ho<=0){showToast('Horas requeridas',false);return;}showLoading(true);if(currentUser&&USUARIOS_LOCALES[currentUser.username]){const np={id:Date.now(),fecha:fe,tipo:ti,clasificacion:cl,modulo:mo,descripcion:de,horas:ho,repuesto:re||'',observaciones:ob||'',usuario:currentUser.username,tecnico:te,timestamp:new Date().toISOString()};planillas.unshift(np);localStorage.setItem('panol_planillas',JSON.stringify(planillas));showLoading(false);showToast('✅ Registrado (local)');document.getElementById('planillaTipo').value='';document.getElementById('planillaModulo').value='';document.getElementById('planillaDescripcion').value='';document.getElementById('planillaHoras').value='';document.getElementById('planillaRepuesto').value='';document.getElementById('planillaObservaciones').value='';initPlanillaFecha();if(currentUser?.rol==='admin'){cargarOrdenesDesdePlanillas();renderTablaOT();}return;}apiCall('/api/planillas',{method:'POST',body:JSON.stringify({fecha:fe,tipo:ti,clasificacion:cl,modulo:mo,descripcion:de,horas:ho,repuesto:re,observaciones:ob,tecnico:te})}).then(d=>{showLoading(false);if(d.success){planillas.unshift(d.planilla);guardarPlanillasLocal();showToast('✅ Registrado');document.getElementById('planillaTipo').value='';document.getElementById('planillaModulo').value='';document.getElementById('planillaDescripcion').value='';document.getElementById('planillaHoras').value='';document.getElementById('planillaRepuesto').value='';document.getElementById('planillaObservaciones').value='';initPlanillaFecha();if(currentUser?.rol==='admin'){cargarOrdenesDesdePlanillas();renderTablaOT();}}}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
-function renderPlanillasRecibidas(){const c=document.getElementById('planillasRecibidasList');if(!c)return;if(currentUser?.rol==='admin'){if(currentUser&&USUARIOS_LOCALES[currentUser.username]){renderPlanillasRecibidasUI(c);return;}showLoading(true);apiCall('/api/planillas').then(d=>{planillas=d||[];guardarPlanillasLocal();showLoading(false);renderPlanillasRecibidasUI(c);if(!planillasInterval)iniciarPollingPlanillas();}).catch(()=>{showLoading(false);renderPlanillasRecibidasUI(c);});}else{renderPlanillasRecibidasUI(c);}}
-function renderPlanillasRecibidasUI(c){if(!c)return;const fe=document.getElementById('planillaFiltroEmpleado'),ff=document.getElementById('planillaFiltroFecha');const em=[...new Set(planillas.map(p=>p.usuario))],ea=fe?.value||'',fa=ff?.value||'';if(fe)fe.innerHTML=`<option value="">Todos</option>${em.map(e=>`<option value="${e}" ${e===ea?'selected':''}>${e}</option>`).join('')}`;let pf=[...planillas];if(ea)pf=pf.filter(p=>p.usuario===ea);if(fa)pf=pf.filter(p=>p.fecha===fa);const ef=[...new Set(pf.map(p=>p.usuario))];if(ef.length===0){c.innerHTML='<div class="planilla-vacia"><div class="icono">📭</div><div class="titulo">Sin planillas</div></div>';return;}let h='';ef.forEach(em=>{const pe=pf.filter(p=>p.usuario===em).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));const pp={};const pm=[];pe.forEach(p=>{const d=p.fecha;if(!pp[d])pp[d]=0;if(pp[d]<7){pp[d]++;pm.push(p);}});const tp=pe.length,th=pe.reduce((s,p)=>s+p.horas,0);h+=`<div class="empleado-planilla-card"><div class="empleado-planilla-header" onclick="togglePlanillasEmpleado('${em}')"><span class="nombre">👤 ${em}</span><span class="badge-count">${tp} trabajos · ${th}h</span><span class="toggle-icon" id="toggleIcon_${em}">+</span></div><div class="empleado-planilla-body" id="planillasBody_${em}">${pm.length>0?pm.map(p=>`<div class="planilla-item"><span class="fecha">${p.fecha}</span><span class="tipo ${p.tipo.toLowerCase()}">${p.tipo}</span><span class="modulo">${p.modulo}</span><span class="horas">${p.horas}h</span><span class="repuesto">${p.repuesto||'—'}</span><div class="acciones"><button onclick="verPlanillaDetalle('${p.id}')">👁️</button>${currentUser?.rol==='admin'?`<button onclick="eliminarPlanilla('${p.id}')">🗑️</button>`:''}</div></div>`).join(''):'<div class="planilla-vacia"><p>Sin registros</p></div>'}${tp>7?`<div style="text-align:center;font-size:12px;color:var(--sub);padding:8px;">... y ${tp-7} más</div>`:''}</div></div>`;});c.innerHTML=h;actualizarContadorPlanillas();}
+function cargarPlanillasDesdeServidor(){if(!token || token.startsWith('token_local_'))return Promise.resolve([]);return apiCall('/api/planillas').then(d=>{planillas=d||[];if(currentTab==='planillasRecibidas'&&currentUser?.rol==='admin')renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));return planillas;}).catch(()=>[]);}
+function registrarPlanilla(){if(!currentUser){showToast('Iniciá sesión',false);return;}const fe=document.getElementById('planillaFecha').value,ti=document.getElementById('planillaTipo').value,cl=document.getElementById('planillaClasificacion').value,mo=document.getElementById('planillaModulo').value.trim(),de=document.getElementById('planillaDescripcion').value.trim(),te=document.getElementById('planillaTecnico').value.trim()||currentUser.username,ho=parseFloat(document.getElementById('planillaHoras').value),re=document.getElementById('planillaRepuesto').value.trim(),ob=document.getElementById('planillaObservaciones').value.trim();if(!ti){showToast('Tipo requerido',false);return;}if(!mo){showToast('Módulo requerido',false);return;}if(!de){showToast('Descripción requerida',false);return;}if(!ho||ho<=0){showToast('Horas requeridas',false);return;}showLoading(true);if(token && token.startsWith('token_local_')){const np={id:Date.now(),fecha:fe,tipo:ti,clasificacion:cl,modulo:mo,descripcion:de,horas:ho,repuesto:re||'',observaciones:ob||'',usuario:currentUser.username,tecnico:te,timestamp:new Date().toISOString()};planillas.unshift(np);showLoading(false);showToast('✅ Registrado (local)');document.getElementById('planillaTipo').value='';document.getElementById('planillaModulo').value='';document.getElementById('planillaDescripcion').value='';document.getElementById('planillaHoras').value='';document.getElementById('planillaRepuesto').value='';document.getElementById('planillaObservaciones').value='';initPlanillaFecha();if(currentUser?.rol==='admin'){cargarOrdenesDesdePlanillas();renderTablaOT();}return;}apiCall('/api/planillas',{method:'POST',body:JSON.stringify({fecha:fe,tipo:ti,clasificacion:cl,modulo:mo,descripcion:de,horas:ho,repuesto:re,observaciones:ob,tecnico:te})}).then(d=>{showLoading(false);if(d.success){planillas.unshift(d.planilla);showToast('✅ Registrado');document.getElementById('planillaTipo').value='';document.getElementById('planillaModulo').value='';document.getElementById('planillaDescripcion').value='';document.getElementById('planillaHoras').value='';document.getElementById('planillaRepuesto').value='';document.getElementById('planillaObservaciones').value='';initPlanillaFecha();if(currentUser?.rol==='admin'){cargarOrdenesDesdePlanillas();renderTablaOT();}cargarPlanillasDesdeServidor();}}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
+function renderPlanillasRecibidas(){const c=document.getElementById('planillasRecibidasList');if(!c)return;if(currentUser?.rol==='admin'){if(token && token.startsWith('token_local_')){renderPlanillasRecibidasUI(c);return;}showLoading(true);apiCall('/api/planillas').then(d=>{planillas=d||[];showLoading(false);renderPlanillasRecibidasUI(c);if(!planillasInterval)iniciarPollingPlanillas();}).catch(()=>{showLoading(false);renderPlanillasRecibidasUI(c);});}else{renderPlanillasRecibidasUI(c);}}
+function renderPlanillasRecibidasUI(c){if(!c)return;const fe=document.getElementById('planillaFiltroEmpleado'),ff=document.getElementById('planillaFiltroFecha');const em=[...new Set(planillas.map(p=>p.usuario))],ea=fe?.value||'',fa=ff?.value||'';if(fe)fe.innerHTML=`<option value="">Todos</option>${em.map(e=>`<option value="${e}" ${e===ea?'selected':''}>${e}</option>`).join('')}`;let pf=[...planillas];if(ea)pf=pf.filter(p=>p.usuario===ea);if(fa)pf=pf.filter(p=>p.fecha===fa);const ef=[...new Set(pf.map(p=>p.usuario))];if(ef.length===0){c.innerHTML='<div class="planilla-vacia"><div class="icono">📭</div><div class="titulo">Sin planillas</div></div>';return;}let h='';ef.forEach(em=>{const pe=pf.filter(p=>p.usuario===em).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));const pp={};const pm=[];pe.forEach(p=>{const d=p.fecha;if(!pp[d])pp[d]=0;if(pp[d]<7){pp[d]++;pm.push(p);}});const tp=pe.length,th=pe.reduce((s,p)=>s+p.horas,0);h+=`<div class="empleado-planilla-card"><div class="empleado-planilla-header" onclick="togglePlanillasEmpleado('${em}')"><span class="nombre">👤 ${em}</span><span class="badge-count">${tp} trabajos · ${th}h</span><span class="toggle-icon" id="toggleIcon_${em}">+</span></div><div class="empleado-planilla-body" id="planillasBody_${em}">${pm.length>0?pm.map(p=>`<div class="planilla-item"><span class="fecha">${p.fecha}</span><span class="tipo ${p.tipo.toLowerCase()}">${p.tipo}</span><span class="modulo">${p.modulo}</span><span class="horas">${p.horas}h</span><span class="repuesto">${p.repuesto||'—'}</span><div class="acciones"><button onclick="verPlanillaDetalle('${p.id}')">👁️</button>${currentUser?.rol==='admin'?`<button onclick="eliminarPlanilla('${p.id}')">🗑️</button>`:''}</div></div>`).join(''):'<div class="planilla-vacia"><p>Sin registros</p></div>'}${tp>7?`<div style="text-align:center;font-size:12px;color:var(--sub);padding:8px;">... y ${tp-7} más</div>`:''}</div></div>`;});c.innerHTML=h;}
 function togglePlanillasEmpleado(em){const b=document.getElementById(`planillasBody_${em}`),i=document.getElementById(`toggleIcon_${em}`);if(b){b.classList.toggle('open');if(i){i.textContent=b.classList.contains('open')?'✕':'+';i.classList.toggle('open');}}}
 function verPlanillaDetalle(id){const p=planillas.find(x=>x.id===id);if(!p){showToast('No encontrada',false);return;}alert(`📋 PLANILLA\n━━━━━━━━━━━━\n📅 ${p.fecha}\n👤 ${p.tecnico}\n🔧 ${p.tipo}\n📋 ${p.clasificacion||'OT'}\n📌 ${p.modulo}\n📝 ${p.descripcion}\n⏱ ${p.horas}h\n🔩 ${p.repuesto||'—'}\n💬 ${p.observaciones||'—'}`);}
-function eliminarPlanilla(id){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}if(!confirm('¿Eliminar?'))return;if(currentUser&&USUARIOS_LOCALES[currentUser.username]){planillas=planillas.filter(p=>p.id!==id);localStorage.setItem('panol_planillas',JSON.stringify(planillas));renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));showToast('✅ Eliminada (local)');return;}showLoading(true);apiCall(`/api/planillas/${id}`,{method:'DELETE'}).then(()=>{showLoading(false);planillas=planillas.filter(p=>p.id!==id);guardarPlanillasLocal();renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));showToast('✅ Eliminada');}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
+function eliminarPlanilla(id){if(currentUser?.rol!=='admin'){showToast('Solo admin',false);return;}if(!confirm('¿Eliminar?'))return;if(token && token.startsWith('token_local_')){planillas=planillas.filter(p=>p.id!==id);renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));showToast('✅ Eliminada (local)');return;}showLoading(true);apiCall(`/api/planillas/${id}`,{method:'DELETE'}).then(()=>{showLoading(false);planillas=planillas.filter(p=>p.id!==id);renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));showToast('✅ Eliminada');cargarPlanillasDesdeServidor();}).catch(err=>{showLoading(false);showToast('❌ '+err.message,false);});}
 function filtrarPlanillasPorEmpleado(){renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));}
 function filtrarPlanillasPorFecha(){renderPlanillasRecibidasUI(document.getElementById('planillasRecibidasList'));}
 function exportarPlanillasExcel(){if(planillas.length===0){showToast('Sin datos',false);return;}const fe=document.getElementById('planillaFiltroEmpleado')?.value||'',ff=document.getElementById('planillaFiltroFecha')?.value||'';let de=[...planillas];if(fe)de=de.filter(p=>p.usuario===fe);if(ff)de=de.filter(p=>p.fecha===ff);if(de.length===0){showToast('Sin resultados',false);return;}const w=XLSX.utils.book_new();const d=de.map(p=>({'Fecha':p.fecha,'Técnico':p.tecnico,'Tipo':p.tipo,'Clasificación':p.clasificacion||'OT','Módulo':p.modulo,'Descripción':p.descripcion,'Horas':p.horas,'Repuesto':p.repuesto||'—','Observaciones':p.observaciones||'','Registrado':p.usuario}));const ws=XLSX.utils.json_to_sheet(d);ws['!cols']=[{wch:12},{wch:15},{wch:12},{wch:20},{wch:40},{wch:10},{wch:20},{wch:30},{wch:15}];XLSX.utils.book_append_sheet(w,ws,'Planillas');const wo=XLSX.write(w,{bookType:'xlsx',type:'array'});const b=new Blob([wo],{type:'application/octet-stream'});const l=document.createElement('a');l.href=URL.createObjectURL(b);let n='planillas_trabajo';if(fe)n+=`_${fe}`;if(ff)n+=`_${ff}`;n+='.xlsx';l.download=n;document.body.appendChild(l);l.click();document.body.removeChild(l);setTimeout(()=>URL.revokeObjectURL(l.href),100);showToast('✅ Exportado');}
@@ -882,7 +652,7 @@ function initPlanillaFecha(){const fi=document.getElementById('planillaFecha');i
 // ============================================================
 //  ÓRDENES DE TRABAJO
 // ============================================================
-function guardarOTLocal(){localStorage.setItem('ot_ordenes_v2',JSON.stringify(ordenes));localStorage.setItem('ot_maquinas',JSON.stringify(maquinasList));localStorage.setItem('ot_tecnicos',JSON.stringify(tecnicosList));localStorage.setItem('ot_modulos',JSON.stringify(modulosList));}
+function guardarOTLocal(){/* Las órdenes se guardan en localStorage solo para persistencia entre sesiones */localStorage.setItem('ot_ordenes_v2',JSON.stringify(ordenes));localStorage.setItem('ot_maquinas',JSON.stringify(maquinasList));localStorage.setItem('ot_tecnicos',JSON.stringify(tecnicosList));localStorage.setItem('ot_modulos',JSON.stringify(modulosList));}
 function cargarOrdenesDesdePlanillas(){const ie=new Set(ordenes.map(o=>o.id));let c=0;planillas.forEach(p=>{const id=p.id||Date.now()+Math.random()*1000;if(!ie.has(id)){ordenes.push({id,fecha:p.fecha||'',maquina:p.modulo||'',falla:p.descripcion||'',clasificacion:p.clasificacion||'Orden de Trabajo',tecnico:p.tecnico||p.usuario||'',horas:p.horas||0,repuestos:p.repuesto||'',solucion:'',operativa:'SI',tipoOrden:p.tipo||'',comentarios:p.observaciones||'',_origen:'planilla'});ie.add(id);c++;}});if(c>0)guardarOTLocal();}
 function initOrdenes(){const s=localStorage.getItem('ot_ordenes_v2');if(s){try{const p=JSON.parse(s);if(p.length>0)ordenes=p;}catch(e){}}if(currentUser?.rol==='admin')cargarOrdenesDesdePlanillas();renderTablaOT();}
 function renderTablaOT(){const s=localStorage.getItem('ot_ordenes_v2');if(s){try{const p=JSON.parse(s);if(p.length>0)ordenes=p;}catch(e){}}if(currentUser?.rol==='admin')cargarOrdenesDesdePlanillas();const q=document.getElementById('searchInputOT')?.value?.toLowerCase()||'',fc=document.getElementById('filterClasificacionOT')?.value||'',fm=document.getElementById('filterMaquinaOT')?.value||'',ft=document.getElementById('filterTecnicoOT')?.value||'';let fl=ordenes.filter(o=>{const ms=!q||(o.id||'').toString().toLowerCase().includes(q)||(o.maquina||'').toLowerCase().includes(q)||(o.tecnico||'').toLowerCase().includes(q)||(o.falla||'').toLowerCase().includes(q);return ms&&(!fc||o.clasificacion===fc)&&(!fm||o.maquina===fm)&&(!ft||o.tecnico===ft);});document.getElementById('totalOT').textContent=fl.length;const hs=fl.map(o=>parseFloat(o.horas)||0);document.getElementById('promHorasOT').textContent=fl.length?(hs.reduce((a,b)=>a+b,0)/fl.length).toFixed(1):'0.0';document.getElementById('totalRepuestosOT').textContent=fl.filter(o=>o.repuestos&&o.repuestos.trim()).length;const ma=[...new Set(ordenes.map(o=>o.maquina).filter(Boolean))].sort(),te=[...new Set(ordenes.map(o=>o.tecnico).filter(Boolean))].sort();const sm=document.getElementById('filterMaquinaOT'),st=document.getElementById('filterTecnicoOT');if(sm){const cv=sm.value;sm.innerHTML='<option value="">Todas</option>'+ma.map(m=>`<option value="${m}">${m}</option>`).join('');sm.value=cv;}if(st){const cv=st.value;st.innerHTML='<option value="">Todos</option>'+te.map(t=>`<option value="${t}">${t}</option>`).join('');st.value=cv;}const tb=document.getElementById('tablaBodyOT'),em=document.getElementById('emptyStateOT');if(fl.length===0){tb.innerHTML='';if(em)em.style.display='block';return;}if(em)em.style.display='none';tb.innerHTML=fl.map(o=>{const ff=f=>{if(!f)return'';if(f instanceof Date)return`${String(f.getDate()).padStart(2,'0')}/${String(f.getMonth()+1).padStart(2,'0')}/${String(f.getFullYear()).slice(-2)}`;const fs=String(f);if(fs.includes('-')){const p=fs.split('-');if(p.length===3)return`${p[1]}/${p[2]}/${p[0].slice(-2)}`;}return fs;};const ep=o.clasificacion==='Preventivo';return`<tr><td><strong style="color:var(--verde);">${o.id||'—'}</strong></td><td>${ff(o.fecha)}</td><td><span class="badge-ot">${o.maquina||'—'}</span></td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.falla||''}">${o.falla||'—'}</td><td><span class="${ep?'badge-info':'badge-warning'}">${ep?'🛠️ Preventivo':'📋 Orden'}</span></td><td><strong>${o.tecnico||'—'}</strong></td><td style="font-weight:700;color:var(--verde);">${o.horas||0}h</td><td>${o.repuestos||'—'}</td><td style="text-align:center;"><button class="btn-accion" onclick="verDetalleOT('${o.id}')">👁️</button></td></tr>`;}).join('');}
@@ -902,7 +672,7 @@ function processFileOT(f){const r=new FileReader();r.onload=function(e){try{cons
 function confirmarImportacionOT(){if(!importDataOT||importDataOT.length===0){showToast('Sin datos',false);return;}let c=0;importDataOT.forEach(o=>{const ex=ordenes.find(x=>x.id==o.id);if(!ex){ordenes.push({...o,_origen:'importado'});c++;}});guardarOTLocal();cerrarImportadorOT();renderTablaOT();showToast('✅ '+c+' importadas');}
 
 // ============================================================
-//  INICIO - Verificar token guardado
+//  INICIO - Verificar token guardado (solo token, no datos)
 // ============================================================
 const savedToken = localStorage.getItem('panol_token');
 const savedUser = localStorage.getItem('panol_user');
@@ -911,51 +681,11 @@ if (savedToken && savedUser) {
         const userData = JSON.parse(savedUser);
         if (savedToken.startsWith('token_local_')) {
             if (USUARIOS_LOCALES[userData.username]) {
-                currentUser = { username: userData.username, rol: userData.rol, token: savedToken };
+                currentUser = { username: userData.username, rol: userData.rol };
                 token = savedToken;
                 mostrarApp(currentUser);
-                // ✅ Intentar cargar desde servidor incluso en modo local
-                mostrarMensajeCarga('🔄 Conectando con servidor...');
-                fetch(`${API_URL}/api/items`, { 
-                    headers: { 'Authorization': token },
-                    signal: AbortSignal.timeout(8000)
-                })
-                .then(res => {
-                    if (!res.ok) throw new Error('Error ' + res.status);
-                    return res.json();
-                })
-                .then(dataItems => {
-                    if (dataItems && dataItems.length > 0) {
-                        items = dataItems;
-                        localStorage.setItem('panol_items', JSON.stringify(items));
-                        return fetch(`${API_URL}/api/movimientos`, { 
-                            headers: { 'Authorization': token },
-                            signal: AbortSignal.timeout(8000)
-                        })
-                        .then(res => res.json())
-                        .then(dataMovs => {
-                            if (dataMovs) {
-                                movs = dataMovs;
-                                localStorage.setItem('panol_movs', JSON.stringify(movs));
-                            }
-                            mostrarMensajeCarga('✅ Datos sincronizados (' + items.length + ' ítems)');
-                            renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
-                            showToast('✅ ' + items.length + ' ítems cargados');
-                        });
-                    } else {
-                        throw new Error('Sin datos en el servidor');
-                    }
-                })
-                .catch(err => {
-                    console.warn('⚠️ Error al cargar del servidor:', err.message);
-                    mostrarMensajeCarga('⚠️ Usando datos locales (caché)');
-                    cargarDatosLocalesFallback();
-                    if (items.length === 0) {
-                        showToast('⚠️ Sin datos. Usá "Sincronizar" 🔄 o importá desde Admin.', false);
-                    } else {
-                        showToast('⚠️ Modo local (' + items.length + ' ítems en caché)');
-                    }
-                });
+                // Intentar cargar del servidor
+                cargarTodosLosDatos();
                 iniciarPing();
                 initPlanillaFecha();
                 initOrdenes();
@@ -963,13 +693,13 @@ if (savedToken && savedUser) {
             }
         } else {
             // Token normal - cargar desde servidor
-            currentUser = { username: userData.username, rol: userData.rol, token: savedToken };
+            currentUser = { username: userData.username, rol: userData.rol };
             token = savedToken;
             mostrarApp(currentUser);
-            loadDataFromServer();
+            cargarTodosLosDatos();
             iniciarPing();
             initPlanillaFecha();
-            cargarPlanillasDesdeServidor().then(() => iniciarPollingPlanillas());
+            iniciarPollingPlanillas();
             iniciarPollingStock();
             initOrdenes();
             cargarSelectoresOT();
@@ -986,7 +716,7 @@ console.log('🔄 Polling de stock: Cada 15 segundos');
 console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO');
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
 console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
-console.log('🔄 Sincronización automática para TODOS los usuarios');
+console.log('☁️ TODOS LOS DATOS SE GUARDAN EN EL SERVIDOR');
 console.log('📱 Si ves "sin datos", presioná el botón 🔄 para sincronizar');
 
 function verDatosOT() { console.log('📋 Órdenes:', ordenes.length); console.log('📦 Ítems:', items.length); console.log('🖼️ Ítems con imágenes:', items.filter(i => i.imagenes && i.imagenes.length > 0).length); console.log('🎠 Carrousel intervals activos:', Object.keys(carrouselIntervals).length); }
