@@ -5,7 +5,6 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const CODIGO_PANOL = 'ECO-FACTORY-2024'; // ← NUEVO
 
 // Aumentado a 50MB para soportar imágenes en base64
 app.use(cors());
@@ -90,13 +89,8 @@ function authenticate(req, res, next) {
 // ============================================================
 
 app.post('/api/login', (req, res) => {
-    const { username, password, codigoPanol } = req.body; // ← ACTUALIZADO
+    const { username, password } = req.body;
     const data = readData();
-    
-    // Verificar código de pañol
-    if (codigoPanol && codigoPanol !== CODIGO_PANOL) {
-        return res.status(401).json({ error: 'Código de pañol incorrecto' });
-    }
     
     if (!data.usuarios[username]) {
         return res.status(401).json({ error: 'Usuario no encontrado' });
@@ -505,7 +499,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
     console.log(`✅ Servidor corriendo en puerto ${PORT}`);
-    console.log(`🔑 Código de Pañol: ${CODIGO_PANOL}`);
     console.log(`📦 Datos guardados en: ${DATA_FILE}`);
     console.log(`🖼️  Soporte de imágenes múltiples: ACTIVADO (máx 25MB total)`);
     console.log(`👥 Usuarios: admin, Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor`);
