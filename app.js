@@ -39,6 +39,9 @@ let carrouselIntervals = {};
 let planillas = JSON.parse(localStorage.getItem('panol_planillas')) || [];
 let planillasInterval = null;
 
+// POLLING DE STOCK (NUEVO)
+let stockPollingInterval = null;
+
 // ÓRDENES DE TRABAJO
 let ordenes = JSON.parse(localStorage.getItem('ot_ordenes_v2')) || [];
 let maquinasList = JSON.parse(localStorage.getItem('ot_maquinas')) || ['Torno CNC-12', 'Fresadora', 'Prensa hidráulica', 'Compresor', 'Cinta transportadora'];
@@ -158,7 +161,6 @@ function doLogin() {
     .then(data => {
         showLoading(false);
         if (data.error) {
-            // Si falla el servidor, intentar admin local como emergencia
             if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
                 loginLocal(username);
                 showToast('⚠️ Modo local (sin conexión al servidor)');
@@ -167,7 +169,6 @@ function doLogin() {
             showLoginError(data.error);
             return;
         }
-        // Éxito con servidor
         token = data.token;
         currentUser = data;
         localStorage.setItem('panol_token', token);
@@ -177,13 +178,13 @@ function doLogin() {
         iniciarPing();
         initPlanillaFecha();
         cargarPlanillasDesdeServidor().then(() => iniciarPollingPlanillas());
+        iniciarPollingStock();
         initOrdenes();
         cargarSelectoresOT();
         showToast('✅ Bienvenido ' + data.username);
     })
     .catch(err => {
         showLoading(false);
-        // Si no hay conexión, intentar admin local
         if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
             loginLocal(username);
             showToast('⚠️ Sin conexión - Modo local');
@@ -194,7 +195,6 @@ function doLogin() {
     });
 }
 
-// Función para login local (solo admin en emergencia)
 function loginLocal(username) {
     const data = {
         success: true,
@@ -214,7 +214,6 @@ function loginLocal(username) {
     cargarSelectoresOT();
 }
 
-// Función para mostrar la app
 function mostrarApp(data) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'flex';
@@ -235,6 +234,7 @@ function mostrarApp(data) {
 
 function doLogout() {
     detenerPollingPlanillas();
+    detenerPollingStock();
     if (token) fetch(`${API_URL}/api/logout`, { method: 'POST', headers: { 'Authorization': token } }).catch(() => {});
     token = null;
     currentUser = null;
@@ -316,6 +316,42 @@ function updateKPIsFromStats(stats) {
     document.getElementById('kpiCriticos').textContent = stats.criticos || 0;
     document.getElementById('kpiCategorias').textContent = stats.categorias || 0;
     document.getElementById('kpiMovs').textContent = stats.totalMovimientos || 0;
+}
+
+// ============================================================
+//  POLLING DE STOCK (NUEVO)
+// ============================================================
+function iniciarPollingStock() {
+    detenerPollingStock();
+    if (!token || (currentUser && USUARIOS_LOCALES[currentUser.username])) return;
+    stockPollingInterval = setInterval(() => {
+        if (!document.hidden) {
+            sincronizarStock();
+        }
+    }, 10000);
+}
+
+function detenerPollingStock() {
+    if (stockPollingInterval) {
+        clearInterval(stockPollingInterval);
+        stockPollingInterval = null;
+    }
+}
+
+function sincronizarStock() {
+    if (!token) return;
+    apiCall('/api/items')
+        .then(data => {
+            const nuevosItems = data || [];
+            if (JSON.stringify(items) !== JSON.stringify(nuevosItems)) {
+                items = nuevosItems;
+                if (currentTab === 'stock') renderStock();
+                if (currentTab === 'categorias') renderCategorias();
+                updateKPIsLocales();
+                console.log('🔄 Stock actualizado automáticamente');
+            }
+        })
+        .catch(() => {});
 }
 
 // ============================================================
@@ -591,6 +627,7 @@ if (savedToken && savedUser) {
             iniciarPing();
             initPlanillaFecha();
             cargarPlanillasDesdeServidor().then(() => iniciarPollingPlanillas());
+            iniciarPollingStock();
             initOrdenes();
             cargarSelectoresOT();
             showToast('✅ Sesión restaurada');
@@ -602,6 +639,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && document.
 setTimeout(() => { if (document.getElementById('ordenesSection')) { initOrdenes(); cargarSelectoresOT(); } }, 500);
 
 console.log('🏭 Sistema de Stock Pañol ECO FACTORY');
+console.log('🔄 Polling de stock: Cada 10 segundos');
 console.log('📸 Múltiples imágenes + Carrousel + Vista empleado - ACTIVADO');
 console.log('👤 Admin local: admin/admin123 (solo emergencia)');
 console.log('🌐 Empleados: Martin, Gino, Esteban, Lucas, Walter, Yamir, Victor');
