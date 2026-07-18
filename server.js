@@ -141,57 +141,42 @@ app.post('/api/movimiento', authenticate, (req, res) => {
     
     const data = readData();
     
-    // Validar stock para SALIDA
     if (tipo === 'SALIDA') {
         const item = data.items.find(i => i.codigo === codigo);
-        if (!item) {
-            return res.status(404).json({ error: 'Ítem no encontrado' });
-        }
+        if (!item) return res.status(404).json({ error: 'Ítem no encontrado' });
         const stockActual = data.movimientos.reduce((acc, m) => {
             if (m.codigo !== codigo) return acc;
             if (m.tipo === 'ENTRADA' || m.tipo === 'DEVOLUCIÓN') return acc + Number(m.cantidad);
             if (m.tipo === 'SALIDA') return acc - Number(m.cantidad);
             return acc;
         }, item.inicial || 0);
-        
-        if (cantidad > stockActual) {
-            return res.status(400).json({ error: 'Stock insuficiente' });
-        }
+        if (cantidad > stockActual) return res.status(400).json({ error: 'Stock insuficiente' });
     }
     
     const movimiento = {
         id: Date.now(),
         fecha: new Date().toLocaleDateString('es-AR'),
         hora: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-        tipo,
-        codigo,
-        descripcion,
+        tipo, codigo, descripcion,
         cantidad: Number(cantidad),
         responsable: responsable || req.user.username,
-        ot: ot || '',
-        sector: sector || '',
-        obs: obs || '',
+        ot: ot || '', sector: sector || '', obs: obs || '',
         usuario: req.user.username
     };
     
     data.movimientos.unshift(movimiento);
     
-    // Si es ENTRADA o DEVOLUCIÓN y el ítem no existe, crearlo
     if (tipo === 'ENTRADA' || tipo === 'DEVOLUCIÓN') {
         const itemExistente = data.items.find(i => i.codigo === codigo);
         if (!itemExistente) {
             data.items.push({
-                codigo: codigo,
-                descripcion: descripcion,
+                codigo, descripcion,
                 categoria: categoria || 'Sin categoría',
                 unidad: unidad || 'Unidad',
-                minimo: minimo || 1,
-                maximo: maximo || 10,
+                minimo: minimo || 1, maximo: maximo || 10,
                 inicial: Number(cantidad),
-                ubicacion: ubicacion || '',
-                planta: planta || 'Planta 1',
-                critico: critico || 'NO',
-                obs: obs || '',
+                ubicacion: ubicacion || '', planta: planta || 'Planta 1',
+                critico: critico || 'NO', obs: obs || '',
                 imagenes: []
             });
         }
@@ -202,64 +187,33 @@ app.post('/api/movimiento', authenticate, (req, res) => {
 });
 
 app.post('/api/items', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden crear ítems' });
-    }
-    
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden crear ítems' });
     const data = readData();
     const nuevoItem = req.body;
-    
-    if (!nuevoItem.codigo || !nuevoItem.descripcion) {
-        return res.status(400).json({ error: 'Código y descripción son obligatorios' });
-    }
-    
-    if (data.items.find(i => i.codigo === nuevoItem.codigo)) {
-        return res.status(400).json({ error: 'El código ya existe' });
-    }
-    
-    if (!nuevoItem.imagenes) {
-        nuevoItem.imagenes = [];
-    }
-    
+    if (!nuevoItem.codigo || !nuevoItem.descripcion) return res.status(400).json({ error: 'Código y descripción son obligatorios' });
+    if (data.items.find(i => i.codigo === nuevoItem.codigo)) return res.status(400).json({ error: 'El código ya existe' });
+    if (!nuevoItem.imagenes) nuevoItem.imagenes = [];
     data.items.push(nuevoItem);
     writeData(data);
     res.json({ success: true, item: nuevoItem });
 });
 
 app.put('/api/items/:codigo', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden editar ítems' });
-    }
-    
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden editar ítems' });
     const data = readData();
     const index = data.items.findIndex(i => i.codigo === req.params.codigo);
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Ítem no encontrado' });
-    }
-    
+    if (index === -1) return res.status(404).json({ error: 'Ítem no encontrado' });
     data.items[index] = { ...data.items[index], ...req.body };
-    
-    if (!data.items[index].imagenes) {
-        data.items[index].imagenes = [];
-    }
-    
+    if (!data.items[index].imagenes) data.items[index].imagenes = [];
     writeData(data);
     res.json({ success: true, item: data.items[index] });
 });
 
 app.delete('/api/items/:codigo', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden eliminar ítems' });
-    }
-    
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden eliminar ítems' });
     const data = readData();
     const index = data.items.findIndex(i => i.codigo === req.params.codigo);
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Ítem no encontrado' });
-    }
-    
+    if (index === -1) return res.status(404).json({ error: 'Ítem no encontrado' });
     data.items.splice(index, 1);
     writeData(data);
     res.json({ success: true });
@@ -270,65 +224,52 @@ app.delete('/api/items/:codigo', authenticate, (req, res) => {
 // ============================================================
 
 app.put('/api/items/:codigo/imagenes', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden editar' });
-    }
-    
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden editar' });
     const { imagenes } = req.body;
-    if (!Array.isArray(imagenes)) {
-        return res.status(400).json({ error: 'Se espera un array de imágenes' });
-    }
-    
-    if (imagenes.length > 5) {
-        return res.status(400).json({ error: 'Máximo 5 imágenes por ítem' });
-    }
-    
+    if (!Array.isArray(imagenes)) return res.status(400).json({ error: 'Se espera un array de imágenes' });
+    if (imagenes.length > 5) return res.status(400).json({ error: 'Máximo 5 imágenes por ítem' });
     const tamañoTotal = imagenes.reduce((total, img) => {
-        if (img && img.startsWith('data:image')) {
-            const base64 = img.split(',')[1] || '';
-            return total + Math.round((base64.length * 3) / 4);
-        }
+        if (img && img.startsWith('data:image')) { const base64 = img.split(',')[1] || ''; return total + Math.round((base64.length * 3) / 4); }
         return total;
     }, 0);
-    
-    if (tamañoTotal > 25 * 1024 * 1024) {
-        return res.status(400).json({ error: 'Las imágenes exceden el tamaño máximo (25MB)' });
-    }
-    
+    if (tamañoTotal > 25 * 1024 * 1024) return res.status(400).json({ error: 'Las imágenes exceden el tamaño máximo (25MB)' });
     const data = readData();
     const index = data.items.findIndex(i => i.codigo === req.params.codigo);
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Ítem no encontrado' });
-    }
-    
+    if (index === -1) return res.status(404).json({ error: 'Ítem no encontrado' });
     data.items[index].imagenes = imagenes;
     data.items[index].imagen = imagenes.length > 0 ? imagenes[0] : null;
-    
     writeData(data);
     res.json({ success: true, item: data.items[index] });
 });
 
 // ============================================================
-//  RUTAS API - BACKUP
+//  ✅ RUTA BACKUP/RESTORE - CORREGIDA
 // ============================================================
 
 app.get('/api/backup', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden descargar backups' });
-    }
-    const data = readData();
-    res.json(data);
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden descargar backups' });
+    res.json(readData());
 });
 
 app.post('/api/backup/restore', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden restaurar backups' });
-    }
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden restaurar backups' });
     const backupData = req.body;
-    if (!backupData.items || !backupData.movimientos || !backupData.usuarios) {
-        return res.status(400).json({ error: 'Datos inválidos' });
+    
+    // Validación más flexible
+    if (!backupData.items || !backupData.movimientos) {
+        return res.status(400).json({ error: 'Datos inválidos. Se requieren items y movimientos.' });
     }
+    
+    // Si no vienen usuarios, mantener los existentes
+    const dataActual = readData();
+    if (!backupData.usuarios || Object.keys(backupData.usuarios).length === 0) {
+        backupData.usuarios = dataActual.usuarios;
+    }
+    
+    // Mantener planillas existentes si no vienen
+    if (!backupData.planillas) backupData.planillas = dataActual.planillas || [];
+    if (!backupData.correctivos) backupData.correctivos = dataActual.correctivos || [];
+    
     backupData.items = backupData.items.map(item => ({ ...item, imagenes: item.imagenes || [] }));
     writeData(backupData);
     res.json({ success: true });
@@ -363,29 +304,20 @@ app.get('/api/stats', authenticate, (req, res) => {
 app.get('/api/planillas', authenticate, (req, res) => {
     const data = readData();
     const planillas = data.planillas || [];
-    if (req.user.rol === 'admin') {
-        res.json(planillas);
-    } else {
-        res.json(planillas.filter(p => p.usuario === req.user.username));
-    }
+    res.json(req.user.rol === 'admin' ? planillas : planillas.filter(p => p.usuario === req.user.username));
 });
 
 app.post('/api/planillas', authenticate, (req, res) => {
     const { fecha, tipo, clasificacion, modulo, descripcion, horas, repuesto, observaciones, tecnico } = req.body;
-    if (!fecha || !tipo || !modulo || !descripcion || !horas) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios' });
-    }
+    if (!fecha || !tipo || !modulo || !descripcion || !horas) return res.status(400).json({ error: 'Faltan datos obligatorios' });
     const data = readData();
     if (!data.planillas) data.planillas = [];
     const nuevaPlanilla = {
         id: Date.now(), fecha, tipo,
         clasificacion: clasificacion || 'Orden de Trabajo',
-        modulo, descripcion,
-        horas: Number(horas),
-        repuesto: repuesto || '',
-        observaciones: observaciones || '',
-        usuario: req.user.username,
-        tecnico: tecnico || req.user.username,
+        modulo, descripcion, horas: Number(horas),
+        repuesto: repuesto || '', observaciones: observaciones || '',
+        usuario: req.user.username, tecnico: tecnico || req.user.username,
         timestamp: new Date().toISOString()
     };
     data.planillas.unshift(nuevaPlanilla);
@@ -394,9 +326,7 @@ app.post('/api/planillas', authenticate, (req, res) => {
 });
 
 app.delete('/api/planillas/:id', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden eliminar planillas' });
-    }
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden eliminar planillas' });
     const data = readData();
     if (!data.planillas) data.planillas = [];
     const index = data.planillas.findIndex(p => p.id === parseInt(req.params.id));
@@ -407,12 +337,9 @@ app.delete('/api/planillas/:id', authenticate, (req, res) => {
 });
 
 app.get('/api/planillas/usuario/:username', authenticate, (req, res) => {
-    if (req.user.rol !== 'admin') {
-        return res.status(403).json({ error: 'Solo administradores pueden ver planillas de otros usuarios' });
-    }
+    if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores pueden ver planillas de otros usuarios' });
     const data = readData();
-    const planillas = (data.planillas || []).filter(p => p.usuario === req.params.username);
-    res.json(planillas);
+    res.json((data.planillas || []).filter(p => p.usuario === req.params.username));
 });
 
 // ============================================================
@@ -422,11 +349,7 @@ app.get('/api/planillas/usuario/:username', authenticate, (req, res) => {
 app.get('/api/correctivos', authenticate, (req, res) => {
     const data = readData();
     const correctivos = data.correctivos || [];
-    if (req.user.rol === 'admin') {
-        res.json(correctivos);
-    } else {
-        res.json(correctivos.filter(c => c.tecnico === req.user.username));
-    }
+    res.json(req.user.rol === 'admin' ? correctivos : correctivos.filter(c => c.tecnico === req.user.username));
 });
 
 app.post('/api/correctivos/import', authenticate, (req, res) => {
@@ -437,13 +360,7 @@ app.post('/api/correctivos/import', authenticate, (req, res) => {
     if (!data.correctivos) data.correctivos = [];
     const idsExistentes = new Set(data.correctivos.map(c => c.id));
     let agregados = 0;
-    registros.forEach(r => {
-        if (!idsExistentes.has(r.id)) {
-            data.correctivos.push({ ...r, _importedAt: new Date().toISOString() });
-            idsExistentes.add(r.id);
-            agregados++;
-        }
-    });
+    registros.forEach(r => { if (!idsExistentes.has(r.id)) { data.correctivos.push({ ...r, _importedAt: new Date().toISOString() }); idsExistentes.add(r.id); agregados++; } });
     writeData(data);
     res.json({ success: true, agregados, total: data.correctivos.length });
 });
@@ -451,17 +368,14 @@ app.post('/api/correctivos/import', authenticate, (req, res) => {
 app.get('/api/correctivos/tecnicos', authenticate, (req, res) => {
     if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores' });
     const data = readData();
-    const correctivos = data.correctivos || [];
-    const tecnicos = [...new Set(correctivos.map(c => c.tecnico).filter(Boolean))];
+    const tecnicos = [...new Set((data.correctivos || []).map(c => c.tecnico).filter(Boolean))];
     res.json(tecnicos.sort());
 });
 
 app.get('/api/correctivos/tecnico/:nombre', authenticate, (req, res) => {
     if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores' });
     const data = readData();
-    const correctivos = data.correctivos || [];
-    const filtrados = correctivos.filter(c => c.tecnico === req.params.nombre);
-    res.json(filtrados);
+    res.json((data.correctivos || []).filter(c => c.tecnico === req.params.nombre));
 });
 
 app.delete('/api/correctivos/:id', authenticate, (req, res) => {
@@ -477,8 +391,7 @@ app.delete('/api/correctivos/:id', authenticate, (req, res) => {
 
 app.get('/api/correctivos/export', authenticate, (req, res) => {
     if (req.user.rol !== 'admin') return res.status(403).json({ error: 'Solo administradores' });
-    const data = readData();
-    res.json(data.correctivos || []);
+    res.json(readData().correctivos || []);
 });
 
 // ============================================================
@@ -487,9 +400,7 @@ app.get('/api/correctivos/export', authenticate, (req, res) => {
 
 app.use((err, req, res, next) => {
     console.error('❌ Error:', err);
-    if (err.type === 'entity.too.large') {
-        return res.status(413).json({ error: 'Los datos enviados son demasiado grandes. Máximo 50MB.' });
-    }
+    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Los datos enviados son demasiado grandes. Máximo 50MB.' });
     res.status(500).json({ error: 'Error interno del servidor' });
 });
 
