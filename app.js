@@ -92,11 +92,10 @@ function estadoItem(actual, minimo, item) {
 }
 
 // ============================================================
-//  API HELPER - TODAS LAS LLAMADAS AL SERVIDOR
+//  ✅ API HELPER - CORREGIDO
 // ============================================================
 function apiCall(endpoint, options = {}) {
-    // Si estamos en modo local (sin token o fallback)
-    const isLocal = !token || (currentUser && USUARIOS_LOCALES[currentUser.username]);
+    const isLocal = token && token.startsWith('token_local_');
     
     if (isLocal) {
         if (endpoint === '/api/items') return Promise.resolve(items);
@@ -130,7 +129,7 @@ function apiCall(endpoint, options = {}) {
 }
 
 // ============================================================
-//  AUTENTICACIÓN
+//  ✅ AUTENTICACIÓN - CON REINTENTO
 // ============================================================
 function doLogin() {
     const username = document.getElementById('loginUser').value.trim();
@@ -142,7 +141,10 @@ function doLogin() {
     }
 
     showLoading(true);
+    intentarLoginServidor(username, password, 1);
+}
 
+function intentarLoginServidor(username, password, intento) {
     fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -173,14 +175,19 @@ function doLogin() {
         showToast('✅ Bienvenido ' + data.username);
     })
     .catch(err => {
-        showLoading(false);
-        if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
-            loginLocal(username);
-            showToast('⚠️ Sin conexión - Modo local');
-            return;
+        if (intento < 3) {
+            console.log('⏳ Reintentando conexión (' + (intento + 1) + '/3)...');
+            setTimeout(() => intentarLoginServidor(username, password, intento + 1), 3000);
+        } else {
+            showLoading(false);
+            if (USUARIOS_LOCALES[username] && USUARIOS_LOCALES[username].password === password) {
+                loginLocal(username);
+                showToast('⚠️ Sin conexión - Modo local');
+                return;
+            }
+            showLoginError('Error al conectar con el servidor');
+            console.error(err);
         }
-        showLoginError('Error al conectar con el servidor');
-        console.error(err);
     });
 }
 
@@ -643,76 +650,33 @@ function mapearColumnas(h){const m={};h.forEach((h,i)=>{const n=String(h||'').to
 function processFile(f){const r=new FileReader();r.onload=function(e){try{const w=XLSX.read(e.target.result,{type:'array'});const ws=w.Sheets[w.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(rows.length<2){showImportError('Archivo vacío');return;}let hi=0;for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i].some(c=>typeof c==='string'&&c.trim())){hi=i;break;}}const map=mapearColumnas(rows[hi]);if(map.codigo===undefined||map.descripcion===undefined){showImportError('Columnas: Código y Descripción');return;}importData=rows.slice(hi+1).filter(r=>r[map.codigo]&&String(r[map.codigo]).trim()).map(r=>{let sv=Number(r[map.stock]??0);if(isNaN(sv))sv=0;let cv=String(r[map.critico]||'').trim().toUpperCase();if(!['SI','NO'].includes(cv))cv='NO';return{codigo:String(r[map.codigo]||'').trim(),descripcion:String(r[map.descripcion]||'').trim(),categoria:String(r[map.categoria]||'Sin categoría').trim()||'Sin categoría',unidad:String(r[map.unidad]||'Unidad').trim()||'Unidad',inicial:sv,minimo:Number(r[map.minimo]??0)||0,maximo:Number(r[map.maximo]??0)||0,ubicacion:String(r[map.ubicacion]||'').trim(),planta:String(r[map.planta]||'').trim()||'Planta 1',critico:cv,obs:String(r[map.obs]||'').trim(),imagenes:[]};});if(importData.length===0){showImportError('Sin datos válidos');return;}document.getElementById('dropZone').classList.add('loaded');document.getElementById('dropIcon').textContent='✅';document.getElementById('dropText').textContent=f.name+` (${importData.length} ítems)`;document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box success';document.getElementById('importInfo').textContent=`✓ ${importData.length} ítems listos`;const pc=document.getElementById('previewContainer');pc.style.display='block';pc.innerHTML=`<div style="font-size:12px;font-weight:700;color:var(--sub);margin-bottom:8px;">Vista previa (${Math.min(5,importData.length)} de ${importData.length})</div><table class="preview-table"><thead><tr><th>Código</th><th>Descripción</th><th>Stock</th><th>Mín</th><th>Máx</th><th>Crítico</th></tr></thead><tbody>${importData.slice(0,5).map((r,i)=>`<tr style="background:${i%2===0?'#fff':'var(--bg)'}"><td style="font-weight:700;color:var(--verde);">${r.codigo}</td><td>${r.descripcion}</td><td style="text-align:center;font-weight:700;color:${r.inicial>0?'var(--verdeM)':'var(--rojo)'};">${r.inicial}</td><td style="text-align:center;">${r.minimo}</td><td style="text-align:center;">${r.maximo}</td><td style="text-align:center;font-weight:700;color:${r.critico==='SI'?'var(--rojo)':'var(--sub)'};">${r.critico}</td></tr>`).join('')}${importData.length>5?`<tr><td colspan="6" style="text-align:center;color:var(--sub);">... y ${importData.length-5} más</td></tr>`:''}</tbody></table>`;document.getElementById('importButtons').style.display='flex';}catch(err){showImportError('Error: '+err.message);}};r.readAsArrayBuffer(f);}
 function showImportError(m){document.getElementById('importInfo').style.display='block';document.getElementById('importInfo').className='info-box error';document.getElementById('importInfo').textContent='⚠️ '+m;}
 
-// ============================================================
-//  ✅ IMPORTAR EXCEL - CORREGIDO
-// ============================================================
 function confirmImport() {
-    if (!importData || currentUser?.rol !== 'admin') {
-        showToast('Sin datos', false);
-        return;
-    }
-    
-    // Si estamos en modo local
+    if (!importData || currentUser?.rol !== 'admin') { showToast('Sin datos', false); return; }
     if (token && token.startsWith('token_local_')) {
-        items = importData;
-        movs = [];
-        closeImportModal();
-        categoriasExpandidas = {};
+        items = importData; movs = [];
+        closeImportModal(); categoriasExpandidas = {};
         showToast('✅ ' + items.length + ' ítems (local)');
-        renderStock();
-        renderHistory();
-        renderCategorias();
-        updateKPIsLocales();
+        renderStock(); renderHistory(); renderCategorias(); updateKPIsLocales();
         return;
     }
-    
     showLoading(true);
     showToast('📤 Subiendo ' + importData.length + ' ítems al servidor...');
-    
-    // Primero, obtener los items existentes para saber cuáles actualizar
     apiCall('/api/items')
         .then(existingItems => {
             const promesas = importData.map(i => {
                 const existe = existingItems.find(x => x.codigo === i.codigo);
-                if (existe) {
-                    // Actualizar existente
-                    return apiCall(`/api/items/${i.codigo}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(i)
-                    }).catch(() => null);
-                } else {
-                    // Crear nuevo
-                    return apiCall('/api/items', {
-                        method: 'POST',
-                        body: JSON.stringify(i)
-                    }).catch(() => null);
-                }
+                if (existe) return apiCall(`/api/items/${i.codigo}`, { method: 'PUT', body: JSON.stringify(i) }).catch(() => null);
+                else return apiCall('/api/items', { method: 'POST', body: JSON.stringify(i) }).catch(() => null);
             });
-            
             return Promise.allSettled(promesas);
         })
         .then(resultados => {
             const ok = resultados.filter(r => r.status === 'fulfilled' && r.value?.success !== false).length;
-            const fallidos = resultados.length - ok;
-            
-            showLoading(false);
-            closeImportModal();
-            categoriasExpandidas = {};
-            
-            if (ok > 0) {
-                showToast('✅ ' + ok + ' ítems importados al servidor' + (fallidos > 0 ? ' (' + fallidos + ' fallidos)' : ''));
-                // ✅ RECARGAR TODOS LOS DATOS DEL SERVIDOR
-                setTimeout(() => {
-                    cargarTodosLosDatos();
-                }, 500);
-            } else {
-                showToast('❌ Error al importar', false);
-            }
+            showLoading(false); closeImportModal(); categoriasExpandidas = {};
+            if (ok > 0) { showToast('✅ ' + ok + ' ítems importados'); setTimeout(() => cargarTodosLosDatos(), 500); }
+            else showToast('❌ Error al importar', false);
         })
-        .catch(err => {
-            showLoading(false);
-            showToast('❌ Error: ' + err.message, false);
-        });
+        .catch(err => { showLoading(false); showToast('❌ Error: ' + err.message, false); });
 }
 
 // ============================================================
@@ -755,7 +719,7 @@ function processFileOT(f){const r=new FileReader();r.onload=function(e){try{cons
 function confirmarImportacionOT(){if(!importDataOT||importDataOT.length===0){showToast('Sin datos',false);return;}let c=0;importDataOT.forEach(o=>{const ex=ordenes.find(x=>x.id==o.id);if(!ex){ordenes.push({...o,_origen:'importado'});c++;}});guardarOTLocal();cerrarImportadorOT();renderTablaOT();showToast('✅ '+c+' importadas');}
 
 // ============================================================
-//  INICIO - Verificar token guardado (solo token, no datos)
+//  INICIO - Verificar token guardado
 // ============================================================
 const savedToken = localStorage.getItem('panol_token');
 const savedUser = localStorage.getItem('panol_user');
