@@ -60,7 +60,6 @@
                     <span class="rol" id="userRolDisplay">admin</span>
                     <span class="sync-status" id="syncStatus">●</span>
                     <span class="ping-status" id="pingStatus">⏱ --</span>
-                    <!-- 🔄 BOTÓN DE SINCRONIZACIÓN MANUAL -->
                     <button class="sync-btn" onclick="sincronizarManual()" title="Sincronizar datos con el servidor">🔄</button>
                     <button class="logout-btn" onclick="doLogout()">Salir</button>
                 </div>
@@ -345,74 +344,11 @@
     <!-- TOAST -->
     <div class="toast" id="toast"></div>
 
-    <!-- MODAL IMPORT -->
-    <div class="modal-overlay" id="importModal">
-        <div class="modal">
-            <div class="modal-header"><span class="modal-title">📂 Importar desde Excel</span><button class="modal-close" onclick="closeImportModal()">×</button></div>
-            <div class="modal-body">
-                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
-                    <div style="font-size:32px;margin-bottom:8px;" id="dropIcon">📊</div>
-                    <div style="font-weight:700;" id="dropText">Hacé clic o arrastrá tu archivo Excel</div>
-                    <div style="font-size:12px;color:var(--sub);margin-top:4px;">Formatos: .xlsx · .xls</div>
-                </div>
-                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)">
-                <div class="info-box" id="importInfo" style="display:none;"></div>
-                <div id="previewContainer" style="display:none;"></div>
-                <div class="btn-group" id="importButtons" style="display:none;"><button class="btn btn-cancel" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmImport()">Importar →</button></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL BACKUP -->
-    <div class="modal-overlay" id="backupModal">
-        <div class="modal">
-            <div class="modal-header"><span class="modal-title">💾 Backup</span><button class="modal-close" onclick="closeBackupModal()">×</button></div>
-            <div class="modal-body">
-                <div class="backup-info">📌 <strong>Respaldar y restaurar datos</strong><br>1. Descargá el backup desde esta PC<br>2. Pasá el archivo a otra PC<br>3. Restaurá desde la otra PC</div>
-                <div class="backup-section">
-                    <button class="btn btn-primary admin-only" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button>
-                    <div style="text-align:center;color:var(--sub);font-size:13px;margin:8px 0;">— o —</div>
-                    <button class="btn btn-primary admin-only" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button>
-                    <input type="file" id="restoreFileInput" accept=".xlsx" style="display:none;" onchange="restoreBackup(event)">
-                </div>
-                <div id="restoreInfo" style="display:none;margin-top:16px;"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL ÓRDENES DE TRABAJO -->
-    <div class="modal-overlay" id="modalOT">
-        <div class="modal modal-ot">
-            <div class="modal-header"><span class="modal-title" id="modalTitleOT">➕ Nueva Orden de Trabajo</span><button class="modal-close" onclick="cerrarModalOT()">×</button></div>
-            <div class="modal-body">
-                <form id="formOT" onsubmit="guardarOT(event)">
-                    <div class="form-grid-ot"><div class="form-group-ot"><label>ID</label><input type="text" class="form-control" id="otId" placeholder="Se genera automático" readonly style="background:var(--grisC);"></div><div class="form-group-ot"><label>Fecha</label><input type="date" class="form-control" id="otFecha"></div></div>
-                    <div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Máquina</label><select class="form-control" id="otMaquina"><option value="">Seleccionar máquina</option></select></div><div class="form-group-ot"><label>Turno</label><select class="form-control" id="otTurno"><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div></div>
-                    <div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Falla</label><input type="text" class="form-control" id="otFalla" placeholder="Ej: Vibración excesiva"></div><div class="form-group-ot"><label>Clasificación</label><select class="form-control" id="otClasificacion"><option value="Orden de Trabajo">📋 Orden de Trabajo</option><option value="Preventivo">🛠️ Preventivo</option></select></div></div>
-                    <div class="form-group-ot" style="margin-top:8px;"><label>Módulo intervenido</label><input type="text" class="form-control" id="otModulo" placeholder="Ej: Cabezal, Motor..."></div>
-                    <div class="form-grid-3-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Técnico</label><select class="form-control" id="otTecnico"><option value="">Seleccionar técnico</option></select></div><div class="form-group-ot"><label>Horas</label><input type="number" step="0.5" min="0" class="form-control" id="otHoras" placeholder="Ej: 2.5"></div><div class="form-group-ot"><label>Repuestos</label><input type="text" class="form-control" id="otRepuestos" placeholder="Ej: Rodamiento 6205"></div></div>
-                    <div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Solución</label><input type="text" class="form-control" id="otSolucion" placeholder="Ej: Ajuste de tuercas"></div><div class="form-group-ot"><label>Operativa</label><select class="form-control" id="otOperativa"><option value="SI">SI</option><option value="NO">NO</option></select></div></div>
-                    <div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Tipo de Orden</label><select class="form-control" id="otTipoOrden"><option value="">Seleccionar</option><option>Interna</option><option>Externa</option><option>Emergencia</option><option>Correctivo</option><option>Correctivo Programado</option><option>Taller</option><option>Edilicio</option><option>Preventivo</option></select></div><div class="form-group-ot"><label>Comentarios</label><input type="text" class="form-control" id="otComentarios" placeholder="Observaciones"></div></div>
-                    <div class="submit-area-ot"><button type="submit" class="btn-submit-ot" id="submitBtnOT">✅ Guardar</button><button type="button" class="btn btn-outline" onclick="cerrarModalOT()" style="padding:12px 24px;">Cancelar</button></div>
-                    <input type="hidden" id="editIndexOT" value="-1">
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL IMPORTAR ÓRDENES -->
-    <div class="modal-overlay" id="importModalOT">
-        <div class="modal">
-            <div class="modal-header"><span class="modal-title">📤 Importar desde XLSX</span><button class="modal-close" onclick="cerrarImportadorOT()">×</button></div>
-            <div class="modal-body">
-                <div class="drop-zone-ot" id="dropZoneOT" onclick="document.getElementById('fileInputOT').click()" ondragover="event.preventDefault()" ondrop="handleDropOT(event)"><div class="icon" id="dropIconOT">📊</div><div style="font-weight:700;" id="dropTextOT">Hacé clic o arrastrá tu archivo Excel</div><div style="font-size:12px;color:var(--sub);margin-top:4px;">.xlsx con hoja "Datos"</div></div>
-                <input type="file" id="fileInputOT" accept=".xlsx" style="display:none;" onchange="handleFileSelectOT(event)">
-                <div id="importInfoOT" style="display:none;margin:12px 0;"></div>
-                <div id="previewContainerOT" style="display:none;"></div>
-                <div class="submit-area-ot" id="importButtonsOT" style="display:none;"><button class="btn-submit-ot" onclick="confirmarImportacionOT()" style="flex:1;">✅ Importar</button><button class="btn btn-outline" onclick="cerrarImportadorOT()" style="padding:12px 24px;">Cancelar</button></div>
-            </div>
-        </div>
-    </div>
+    <!-- MODALES (Import, Backup, OT, Import OT) - COMPACTOS -->
+    <div class="modal-overlay" id="importModal"><div class="modal"><div class="modal-header"><span class="modal-title">📂 Importar desde Excel</span><button class="modal-close" onclick="closeImportModal()">×</button></div><div class="modal-body"><div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault()" ondrop="handleDrop(event)"><div style="font-size:32px;margin-bottom:8px;" id="dropIcon">📊</div><div style="font-weight:700;" id="dropText">Hacé clic o arrastrá tu archivo Excel</div><div style="font-size:12px;color:var(--sub);margin-top:4px;">Formatos: .xlsx · .xls</div></div><input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)"><div class="info-box" id="importInfo" style="display:none;"></div><div id="previewContainer" style="display:none;"></div><div class="btn-group" id="importButtons" style="display:none;"><button class="btn btn-cancel" onclick="closeImportModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmImport()">Importar →</button></div></div></div></div>
+    <div class="modal-overlay" id="backupModal"><div class="modal"><div class="modal-header"><span class="modal-title">💾 Backup</span><button class="modal-close" onclick="closeBackupModal()">×</button></div><div class="modal-body"><div class="backup-info">📌 <strong>Respaldar y restaurar datos</strong><br>1. Descargá el backup desde esta PC<br>2. Pasá el archivo a otra PC<br>3. Restaurá desde la otra PC</div><div class="backup-section"><button class="btn btn-primary admin-only" onclick="downloadBackup()" style="background:#1565C0;">📥 Descargar backup</button><div style="text-align:center;color:var(--sub);font-size:13px;margin:8px 0;">— o —</div><button class="btn btn-primary admin-only" onclick="document.getElementById('restoreFileInput').click()" style="background:#E65100;">📤 Restaurar backup</button><input type="file" id="restoreFileInput" accept=".xlsx" style="display:none;" onchange="restoreBackup(event)"></div><div id="restoreInfo" style="display:none;margin-top:16px;"></div></div></div></div>
+    <div class="modal-overlay" id="modalOT"><div class="modal modal-ot"><div class="modal-header"><span class="modal-title" id="modalTitleOT">➕ Nueva Orden de Trabajo</span><button class="modal-close" onclick="cerrarModalOT()">×</button></div><div class="modal-body"><form id="formOT" onsubmit="guardarOT(event)"><div class="form-grid-ot"><div class="form-group-ot"><label>ID</label><input type="text" class="form-control" id="otId" placeholder="Se genera automático" readonly style="background:var(--grisC);"></div><div class="form-group-ot"><label>Fecha</label><input type="date" class="form-control" id="otFecha"></div></div><div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Máquina</label><select class="form-control" id="otMaquina"><option value="">Seleccionar máquina</option></select></div><div class="form-group-ot"><label>Turno</label><select class="form-control" id="otTurno"><option value="">Seleccionar</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div></div><div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Falla</label><input type="text" class="form-control" id="otFalla" placeholder="Ej: Vibración excesiva"></div><div class="form-group-ot"><label>Clasificación</label><select class="form-control" id="otClasificacion"><option value="Orden de Trabajo">📋 Orden de Trabajo</option><option value="Preventivo">🛠️ Preventivo</option></select></div></div><div class="form-group-ot" style="margin-top:8px;"><label>Módulo intervenido</label><input type="text" class="form-control" id="otModulo" placeholder="Ej: Cabezal, Motor..."></div><div class="form-grid-3-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Técnico</label><select class="form-control" id="otTecnico"><option value="">Seleccionar técnico</option></select></div><div class="form-group-ot"><label>Horas</label><input type="number" step="0.5" min="0" class="form-control" id="otHoras" placeholder="Ej: 2.5"></div><div class="form-group-ot"><label>Repuestos</label><input type="text" class="form-control" id="otRepuestos" placeholder="Ej: Rodamiento 6205"></div></div><div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Solución</label><input type="text" class="form-control" id="otSolucion" placeholder="Ej: Ajuste de tuercas"></div><div class="form-group-ot"><label>Operativa</label><select class="form-control" id="otOperativa"><option value="SI">SI</option><option value="NO">NO</option></select></div></div><div class="form-grid-ot" style="margin-top:8px;"><div class="form-group-ot"><label>Tipo de Orden</label><select class="form-control" id="otTipoOrden"><option value="">Seleccionar</option><option>Interna</option><option>Externa</option><option>Emergencia</option><option>Correctivo</option><option>Correctivo Programado</option><option>Taller</option><option>Edilicio</option><option>Preventivo</option></select></div><div class="form-group-ot"><label>Comentarios</label><input type="text" class="form-control" id="otComentarios" placeholder="Observaciones"></div></div><div class="submit-area-ot"><button type="submit" class="btn-submit-ot" id="submitBtnOT">✅ Guardar</button><button type="button" class="btn btn-outline" onclick="cerrarModalOT()" style="padding:12px 24px;">Cancelar</button></div><input type="hidden" id="editIndexOT" value="-1"></form></div></div></div>
+    <div class="modal-overlay" id="importModalOT"><div class="modal"><div class="modal-header"><span class="modal-title">📤 Importar desde XLSX</span><button class="modal-close" onclick="cerrarImportadorOT()">×</button></div><div class="modal-body"><div class="drop-zone-ot" id="dropZoneOT" onclick="document.getElementById('fileInputOT').click()" ondragover="event.preventDefault()" ondrop="handleDropOT(event)"><div class="icon" id="dropIconOT">📊</div><div style="font-weight:700;" id="dropTextOT">Hacé clic o arrastrá tu archivo Excel</div><div style="font-size:12px;color:var(--sub);margin-top:4px;">.xlsx con hoja "Datos"</div></div><input type="file" id="fileInputOT" accept=".xlsx" style="display:none;" onchange="handleFileSelectOT(event)"><div id="importInfoOT" style="display:none;margin:12px 0;"></div><div id="previewContainerOT" style="display:none;"></div><div class="submit-area-ot" id="importButtonsOT" style="display:none;"><button class="btn-submit-ot" onclick="confirmarImportacionOT()" style="flex:1;">✅ Importar</button><button class="btn btn-outline" onclick="cerrarImportadorOT()" style="padding:12px 24px;">Cancelar</button></div></div></div></div>
 
     <script src="app.js"></script>
 </body>
